@@ -973,6 +973,41 @@ def _inventory_filter_options():
     }
 
 
+def _inventory_cascade_data():
+    """Data for the Category -> Subcategory -> Type -> Brand dependent filters.
+
+    Brand has no direct link to category/subcategory/type, so brand_links holds
+    the distinct combinations found on items; the page narrows brands from that.
+    """
+    from Items.models import Item
+    from brand.models import Brand
+    from category.models import Subcategory
+    from type.models import Type
+
+    return {
+        'subcategories': list(
+            Subcategory.objects.filter(status=True)
+            .order_by('subcategory_name')
+            .values('id', 'subcategory_name', 'category_id')
+        ),
+        'types': list(
+            Type.objects.filter(status=True)
+            .order_by('type_name')
+            .values('id', 'type_name', 'subcategory_id')
+        ),
+        'brands': list(
+            Brand.objects.filter(status=True)
+            .order_by('brand_name')
+            .values('id', 'brand_name')
+        ),
+        'brand_links': list(
+            Item.objects.filter(brand__isnull=False)
+            .values('brand_id', 'category_id', 'subcategory_id', 'item_type_id')
+            .distinct()
+        ),
+    }
+
+
 def _inventory_filter_values(request):
     values = {}
     for name in ('item', 'category', 'subcategory', 'item_type', 'brand', 'warehouse'):
@@ -1721,6 +1756,7 @@ def inventory_report(request, company_code=None):
         'report': report_data,
         'inventory_filters': inventory_filters,
         'inventory_filter_options': _inventory_filter_options(),
+        'inventory_cascade_data': _inventory_cascade_data(),
         'can_export': getattr(request.user, 'is_superuser', False) or can_export(request.user),
         'export_query_string': export_query_string,
     })
