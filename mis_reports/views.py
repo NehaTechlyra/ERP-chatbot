@@ -973,9 +973,10 @@ def _inventory_filter_options():
     }
 
 
-def _inventory_cascade_data():
+def _item_cascade_data(db_alias=None):
     """Data for the Category -> Subcategory -> Type -> Brand dependent filters.
 
+    Used by the Inventory by Items, Sales by Item and Purchase by Item reports.
     Brand has no direct link to category/subcategory/type, so brand_links holds
     the distinct combinations found on items; the page narrows brands from that.
     """
@@ -984,24 +985,27 @@ def _inventory_cascade_data():
     from category.models import Subcategory
     from type.models import Type
 
+    def objects(model):
+        return model.objects.using(db_alias) if db_alias else model.objects
+
     return {
         'subcategories': list(
-            Subcategory.objects.filter(status=True)
+            objects(Subcategory).filter(status=True)
             .order_by('subcategory_name')
             .values('id', 'subcategory_name', 'category_id')
         ),
         'types': list(
-            Type.objects.filter(status=True)
+            objects(Type).filter(status=True)
             .order_by('type_name')
             .values('id', 'type_name', 'subcategory_id')
         ),
         'brands': list(
-            Brand.objects.filter(status=True)
+            objects(Brand).filter(status=True)
             .order_by('brand_name')
             .values('id', 'brand_name')
         ),
         'brand_links': list(
-            Item.objects.filter(brand__isnull=False)
+            objects(Item).filter(brand__isnull=False)
             .values('brand_id', 'category_id', 'subcategory_id', 'item_type_id')
             .distinct()
         ),
@@ -1346,6 +1350,7 @@ def _sales_dimension_report(request, company_code, dimension, template_name):
         'sales_dimension': dimension,
         'sales_filters': sales_filters,
         'sales_filter_options': _sales_filter_options(getattr(request, 'company_db', None)),
+        'item_cascade_data': _item_cascade_data(getattr(request, 'company_db', None)) if dimension == 'item' else None,
         'can_export': getattr(request.user, 'is_superuser', False) or can_export(request.user),
         'export_query_string': export_query_string,
     })
@@ -1577,6 +1582,7 @@ def _purchase_dimension_report(request, company_code, dimension, template_name):
         'purchase_dimension': dimension,
         'purchase_filters': purchase_filters,
         'purchase_filter_options': _purchase_filter_options(getattr(request, 'company_db', None)),
+        'item_cascade_data': _item_cascade_data(getattr(request, 'company_db', None)) if dimension == 'item' else None,
         'can_export': getattr(request.user, 'is_superuser', False) or can_export(request.user),
         'export_query_string': export_query_string,
     })
@@ -1756,7 +1762,7 @@ def inventory_report(request, company_code=None):
         'report': report_data,
         'inventory_filters': inventory_filters,
         'inventory_filter_options': _inventory_filter_options(),
-        'inventory_cascade_data': _inventory_cascade_data(),
+        'inventory_cascade_data': _item_cascade_data(),
         'can_export': getattr(request.user, 'is_superuser', False) or can_export(request.user),
         'export_query_string': export_query_string,
     })

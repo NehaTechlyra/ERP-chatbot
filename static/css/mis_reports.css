@@ -199,3 +199,23 @@
     justify-content: flex-start;
   }
 }
+
+/* Searchable (Select2) filter dropdowns - match the form-select-sm fields */
+.mis-report-page .mis-report-filter-card .select2-container {
+  width: 100% !important;
+}
+
+.mis-report-page .mis-report-filter-card .select2-container .select2-selection--single {
+  height: calc(1.5em + 0.5rem + 2px);
+  border: 1px solid #dee2e6;
+}
+
+.mis-report-page .mis-report-filter-card .select2-container--default .select2-selection--single .select2-selection__rendered {
+  line-height: calc(1.5em + 0.5rem);
+  font-size: 0.875rem;
+  padding-left: 0.5rem;
+}
+
+.mis-report-page .mis-report-filter-card .select2-container--default .select2-selection--single .select2-selection__arrow {
+  height: calc(1.5em + 0.5rem);
+}

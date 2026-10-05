@@ -887,7 +887,7 @@
             {% endif %}
 
             {% if request.user.is_superuser or can_view_mis_dashboard or can_view_mis_sales or can_view_mis_purchase or can_view_mis_inventory or can_view_mis_finance or can_view_mis_crm or can_view_mis_hr or can_view_mis_expense or can_export_mis_reports %}
-            {% with active_urls="mis_reports_dashboard mis_sales_report mis_sales_by_customer_report mis_sales_by_salesperson_report mis_sales_by_item_report mis_purchase_report mis_purchase_by_vendor_report mis_purchase_by_item_report mis_inventory_report mis_inventory_warehouses_report mis_expense_report mis_hr_report mis_crm_report mis_finance_report" %}
+            {% with active_urls="mis_reports_dashboard mis_sales_report mis_sales_by_customer_report mis_sales_by_salesperson_report mis_sales_by_item_report mis_purchase_report mis_purchase_by_vendor_report mis_purchase_by_item_report mis_inventory_report mis_inventory_report_summary mis_inventory_warehouses_report mis_expense_report mis_hr_report mis_crm_report mis_finance_report" %}
             <li class="{% if request.resolver_match.url_name in active_urls.split %}showMenu{% endif %}">
                 <div class="icon-link">
                     <a class="{% if request.resolver_match.url_name in active_urls.split %}active-link{% endif %}">

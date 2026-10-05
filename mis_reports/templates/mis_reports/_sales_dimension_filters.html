@@ -43,6 +43,7 @@
         </select>
       </div>
       {% else %}
+      {{ item_cascade_data|json_script:"misCascadeData" }}
       <div class="col-md-2">
         <label class="form-label small">Item</label>
         <select name="item" class="form-select form-select-sm">
@@ -52,28 +53,28 @@
       </div>
       <div class="col-md-2">
         <label class="form-label small">Category</label>
-        <select name="category" class="form-select form-select-sm">
+        <select name="category" data-cascade="category" class="form-select form-select-sm">
           <option value="">All categories</option>
           {% for category in sales_filter_options.categories %}<option value="{{ category.pk }}" {% if sales_filters.category == category.pk %}selected{% endif %}>{{ category.category_name }}</option>{% endfor %}
         </select>
       </div>
       <div class="col-md-2">
         <label class="form-label small">Subcategory</label>
-        <select name="subcategory" class="form-select form-select-sm">
+        <select name="subcategory" data-cascade="subcategory" class="form-select form-select-sm">
           <option value="">All subcategories</option>
           {% for subcategory in sales_filter_options.subcategories %}<option value="{{ subcategory.pk }}" {% if sales_filters.subcategory == subcategory.pk %}selected{% endif %}>{{ subcategory.subcategory_name }}</option>{% endfor %}
         </select>
       </div>
       <div class="col-md-2">
         <label class="form-label small">Type</label>
-        <select name="item_type" class="form-select form-select-sm">
+        <select name="item_type" data-cascade="type" class="form-select form-select-sm">
           <option value="">All types</option>
           {% for item_type in sales_filter_options.item_types %}<option value="{{ item_type.pk }}" {% if sales_filters.item_type == item_type.pk %}selected{% endif %}>{{ item_type.type_name }}</option>{% endfor %}
         </select>
       </div>
       <div class="col-md-2">
         <label class="form-label small">Brand</label>
-        <select name="brand" class="form-select form-select-sm">
+        <select name="brand" data-cascade="brand" class="form-select form-select-sm">
           <option value="">All brands</option>
           {% for brand in sales_filter_options.brands %}<option value="{{ brand.pk }}" {% if sales_filters.brand == brand.pk %}selected{% endif %}>{{ brand.brand_name }}</option>{% endfor %}
         </select>

@@ -3,12 +3,6 @@
 
 {% block exstyle %}
 {% include 'mis_reports/_report_styles.html' %}
-<style>
-  .mis-report-filter-card .select2-container { width: 100% !important; }
-  .mis-report-filter-card .select2-container .select2-selection--single { height: calc(1.5em + .5rem + 2px); border: 1px solid #dee2e6; }
-  .mis-report-filter-card .select2-container--default .select2-selection--single .select2-selection__rendered { line-height: calc(1.5em + .5rem); font-size: .875rem; padding-left: .5rem; }
-  .mis-report-filter-card .select2-container--default .select2-selection--single .select2-selection__arrow { height: calc(1.5em + .5rem); }
-</style>
 {% endblock exstyle %}
 
 {% block page_title %}Inventory by Items{% endblock page_title %}
@@ -54,9 +48,10 @@
         <div class="col-12">
           <div class="mis-report-filter-band px-0"><p class="mis-report-filter-title">Filter by</p></div>
         </div>
+        {{ inventory_cascade_data|json_script:"misCascadeData" }}
         <div class="col-md-2">
           <label class="form-label small">Item</label>
-          <select name="item" id="misInvItem" class="form-select form-select-sm">
+          <select name="item" class="form-select form-select-sm">
             <option value="">All items</option>
             {% for item in inventory_filter_options.items %}
             <option value="{{ item.pk }}" {% if inventory_filters.item == item.pk %}selected{% endif %}>{{ item.name }}</option>
@@ -65,7 +60,7 @@
         </div>
         <div class="col-md-2">
           <label class="form-label small">Category</label>
-          <select name="category" id="misInvCategory" class="form-select form-select-sm">
+          <select name="category" data-cascade="category" class="form-select form-select-sm">
             <option value="">All categories</option>
             {% for category in inventory_filter_options.categories %}
             <option value="{{ category.pk }}" {% if inventory_filters.category == category.pk %}selected{% endif %}>{{ category.category_name }}</option>
@@ -74,7 +69,7 @@
         </div>
         <div class="col-md-2">
           <label class="form-label small">Subcategory</label>
-          <select name="subcategory" id="misInvSubcategory" class="form-select form-select-sm">
+          <select name="subcategory" data-cascade="subcategory" class="form-select form-select-sm">
             <option value="">All subcategories</option>
             {% for subcategory in inventory_filter_options.subcategories %}
             <option value="{{ subcategory.pk }}" {% if inventory_filters.subcategory == subcategory.pk %}selected{% endif %}>{{ subcategory.subcategory_name }}</option>
@@ -83,7 +78,7 @@
         </div>
         <div class="col-md-2">
           <label class="form-label small">Type</label>
-          <select name="item_type" id="misInvType" class="form-select form-select-sm">
+          <select name="item_type" data-cascade="type" class="form-select form-select-sm">
             <option value="">All types</option>
             {% for item_type in inventory_filter_options.item_types %}
             <option value="{{ item_type.pk }}" {% if inventory_filters.item_type == item_type.pk %}selected{% endif %}>{{ item_type.type_name }}</option>
@@ -92,7 +87,7 @@
         </div>
         <div class="col-md-2">
           <label class="form-label small">Brand</label>
-          <select name="brand" id="misInvBrand" class="form-select form-select-sm">
+          <select name="brand" data-cascade="brand" class="form-select form-select-sm">
             <option value="">All brands</option>
             {% for brand in inventory_filter_options.brands %}
             <option value="{{ brand.pk }}" {% if inventory_filters.brand == brand.pk %}selected{% endif %}>{{ brand.brand_name }}</option>
@@ -126,127 +121,3 @@
  
 </div>
 {% endblock content %}
-
-{% block scripts %}
-{{ inventory_cascade_data|json_script:"misInvCascadeData" }}
-<script>
-/* Category -> Subcategory -> Type -> Brand dependent filters.
-   Changing a parent clears its children. Dropdowns are searchable (Select2)
-   and the search box is focused automatically when a dropdown opens. */
-document.addEventListener("DOMContentLoaded", function () {
-  var itemSel = document.getElementById("misInvItem");
-  var catSel = document.getElementById("misInvCategory");
-  var subSel = document.getElementById("misInvSubcategory");
-  var typeSel = document.getElementById("misInvType");
-  var brandSel = document.getElementById("misInvBrand");
-  var dataEl = document.getElementById("misInvCascadeData");
-  if (!catSel || !subSel || !typeSel || !brandSel || !dataEl) return;
-
-  var $ = window.jQuery;
-  var hasSelect2 = !!($ && $.fn && $.fn.select2);
-  var data = JSON.parse(dataEl.textContent);
-  var form = catSel.form;
-
-  // Values applied by the server on page load (used again on Reset)
-  var initial = {
-    item: itemSel ? itemSel.value : "",
-    category: catSel.value, subcategory: subSel.value,
-    type: typeSel.value, brand: brandSel.value
-  };
-
-  // Tell Select2 to redraw after the <option>s or value changed
-  function sync(sel) { if (hasSelect2) $(sel).trigger("change.select2"); }
-
-  function fill(sel, rows, labelKey, selected) {
-    var first = sel.options[0];
-    sel.innerHTML = "";
-    sel.appendChild(first);
-    var keep = "";
-    rows.forEach(function (r) {
-      var o = document.createElement("option");
-      o.value = r.id;
-      o.textContent = r[labelKey] || "";
-      if (String(r.id) === String(selected)) { o.selected = true; keep = String(r.id); }
-      sel.appendChild(o);
-    });
-    sel.value = keep;
-    sync(sel);
-  }
-
-  function subRows() {
-    var c = catSel.value;
-    return c ? data.subcategories.filter(function (s) { return String(s.category_id) === c; })
-             : data.subcategories;
-  }
-  function typeRows() {
-    var sc = subSel.value, c = catSel.value;
-    if (sc) return data.types.filter(function (t) { return String(t.subcategory_id) === sc; });
-    if (c) {
-      var ids = {};
-      data.subcategories.forEach(function (s) { if (String(s.category_id) === c) ids[s.id] = true; });
-      return data.types.filter(function (t) { return ids[t.subcategory_id]; });
-    }
-    return data.types;
-  }
-  function brandRows() {
-    var c = catSel.value, sc = subSel.value, t = typeSel.value;
-    if (!c && !sc && !t) return data.brands;
-    var ok = {};
-    data.brand_links.forEach(function (l) {
-      if (c && String(l.category_id) !== c) return;
-      if (sc && String(l.subcategory_id) !== sc) return;
-      if (t && String(l.item_type_id) !== t) return;
-      ok[l.brand_id] = true;
-    });
-    return data.brands.filter(function (b) { return ok[b.id]; });
-  }
-
-  function build(sel) {
-    fill(subSel, subRows(), "subcategory_name", sel.subcategory);
-    fill(typeSel, typeRows(), "type_name", sel.type);
-    fill(brandSel, brandRows(), "brand_name", sel.brand);
-  }
-
-  // Select2 fires jQuery events (not native ones), so bind through jQuery when present
-  function onChange(el, fn) {
-    if (hasSelect2) { $(el).on("change", fn); } else { el.addEventListener("change", fn); }
-  }
-
-  var allSelects = [itemSel, catSel, subSel, typeSel, brandSel].filter(Boolean);
-  if (hasSelect2) {
-    allSelects.forEach(function (sel) {
-      $(sel).select2({ width: "100%", minimumResultsForSearch: 0 });
-    });
-    // Auto-focus the search box when a dropdown opens
-    // (Select2 4.1 rc doesn't reliably do this with newer jQuery)
-    $(allSelects).on("select2:open", function () {
-      setTimeout(function () {
-        var field = document.querySelector(".select2-container--open .select2-search__field");
-        if (field) field.focus();
-      }, 0);
-    });
-  }
-
-  onChange(catSel, function () {
-    build({ subcategory: "", type: "", brand: "" });
-  });
-  onChange(subSel, function () {
-    fill(typeSel, typeRows(), "type_name", "");
-    fill(brandSel, brandRows(), "brand_name", "");
-  });
-  onChange(typeSel, function () {
-    fill(brandSel, brandRows(), "brand_name", "");
-  });
-
-  form.addEventListener("reset", function () {
-    window.setTimeout(function () {
-      if (itemSel) { itemSel.value = initial.item; sync(itemSel); }
-      catSel.value = initial.category; sync(catSel);
-      build(initial);
-    }, 0);
-  });
-
-  build(initial);
-});
-</script>
-{% endblock scripts %}
