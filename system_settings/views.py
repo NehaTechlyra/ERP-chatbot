@@ -44,6 +44,19 @@ from sales.models import QuotePrefix, OrderPrefix as SalesOrderPrefix, InvoicePr
 from Purchase.models import OrderPrefix as PurchaseOrderPrefix, BillPrefix
 
 
+def _has_trial_module_access(company, license_obj):
+    has_valid_license = (
+        license_obj
+        and license_obj.is_active
+        and not license_obj.is_expired()
+    )
+    return bool(
+        company.trial_active
+        and not company.is_trial_expired
+        and not has_valid_license
+    )
+
+
 def _repair_company_currency_display(company):
     base_currency = Currency.objects.filter(company=company, is_base=True).order_by("id").first()
     base_code = ((base_currency.code if base_currency else "") or getattr(company, "base_currency", None) or "").strip().upper()[:3]
@@ -142,12 +155,15 @@ def settings_page(request):
     for company in Company.objects.all().order_by("id"):
         _repair_company_currency_display(company)
         license_obj = LicenseKey.objects.filter(company=company).first()
+        trial_module_access = _has_trial_module_access(company, license_obj)
 
         modules = []
         enabled_modules_count = 0  # ✅ FIX: correct enabled count
 
         for module in SYSTEM_MODULES:
-            if license_obj:
+            if trial_module_access:
+                has_access = True
+            elif license_obj:
                 has_access = license_obj.module_access.get(
                     module["code"],
                     module["is_core"]
@@ -172,6 +188,7 @@ def settings_page(request):
             "company": company,
             "has_base_currency": Currency.objects.filter(company=company, is_base=True).exists(),
             "license": license_obj,
+            "trial_module_access": trial_module_access,
             "modules": modules,
             "enabled_modules_count": enabled_modules_count,  # ✅ PASS TO TEMPLATE
             "bank_accounts": CompanyBankAccount.objects.filter(

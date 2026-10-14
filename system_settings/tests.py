@@ -1,8 +1,11 @@
 from django.contrib.auth import get_user_model
 from django.test import TestCase, Client
 from django.urls import reverse
+from types import SimpleNamespace
+from unittest.mock import Mock
 
 from company.models import Company
+from system_settings.views import _has_trial_module_access
 
 
 class PrinterSettingsTests(TestCase):
@@ -35,3 +38,22 @@ class PrinterSettingsTests(TestCase):
 
         self.assertEqual(self.company.print_paper_size, 'POS')
         self.assertEqual(response.status_code, 302)
+
+
+class TrialModuleAccessTests(TestCase):
+    def test_active_trial_without_valid_license_has_all_module_access(self):
+        company = SimpleNamespace(trial_active=True, is_trial_expired=0)
+
+        self.assertTrue(_has_trial_module_access(company, None))
+
+    def test_expired_trial_does_not_have_trial_module_access(self):
+        company = SimpleNamespace(trial_active=True, is_trial_expired=1)
+
+        self.assertFalse(_has_trial_module_access(company, None))
+
+    def test_valid_license_takes_precedence_over_trial_access(self):
+        company = SimpleNamespace(trial_active=True, is_trial_expired=0)
+        license_obj = Mock(is_active=True)
+        license_obj.is_expired.return_value = False
+
+        self.assertFalse(_has_trial_module_access(company, license_obj))

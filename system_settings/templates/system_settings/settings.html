@@ -1596,7 +1596,12 @@ label[for="backup-enabled"] {
             <div class="section-card">
                 <h5 class="section-card-title">Module Access Control</h5>
 
-                {% if it.license.license_key %}
+                {% if it.trial_module_access %}
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i>
+                    Active trial: all modules are enabled. Module restrictions apply after the trial ends unless a license is activated.
+                </div>
+                {% elif it.license.license_key %}
                 <div class="alert alert-info">
                     <i class="bi bi-info-circle"></i> 
                     Module access is determined by your activated license. Core modules are always enabled.
