@@ -4162,7 +4162,13 @@ def bill_list(request):
 
     # Filter by payment status
     if payment_status_filter:
-        if payment_status_filter == 'Paid':
+        if payment_status_filter == 'outstanding':
+            # Home dashboard "Pending Bills": everything not fully paid, drafts excluded
+            latest_bills = [
+                b for b in latest_bills
+                if b.status != 'Draft' and not (b.payment_status and (b.payment_status.name or '').strip().lower() == 'paid')
+            ]
+        elif payment_status_filter == 'Paid':
             latest_bills = [b for b in latest_bills if b.payment_status and b.payment_status.name == 'Paid']
         elif payment_status_filter == 'Partially Paid':
             latest_bills = [b for b in latest_bills if b.payment_status and b.payment_status.name == 'Partially Paid']

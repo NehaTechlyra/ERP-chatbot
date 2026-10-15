@@ -52,6 +52,7 @@
         <option value="Not Paid" {% if payment_status_filter == 'Not Paid' %}selected{% endif %}>Not Paid</option>
         <option value="Partially Paid" {% if payment_status_filter == 'Partially Paid' %}selected{% endif %}>Partially Paid</option>
         <option value="Paid" {% if payment_status_filter == 'Paid' %}selected{% endif %}>Paid</option>
+        <option value="outstanding" {% if payment_status_filter == 'outstanding' %}selected{% endif %}>Outstanding (Not + Partially Paid)</option>
     </select>
     <button type="submit" class="btn btn-secondary">Filter</button>
     <a href="{% url 'bill_list' %}" class="btn btn-outline-secondary">Clear</a>

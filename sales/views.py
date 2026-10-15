@@ -9476,7 +9476,10 @@ def sales_inv_list(request):
     if status_filter:
         sales_inv_qs = sales_inv_qs.filter(status=status_filter)
     
-    if payment_status_filter:
+    if payment_status_filter == 'outstanding':
+        # Home dashboard "Open Invoices": everything not fully paid, drafts excluded
+        sales_inv_qs = sales_inv_qs.exclude(status='Draft').exclude(payment_status__name__iexact='Paid')
+    elif payment_status_filter:
         sales_inv_qs = sales_inv_qs.filter(payment_status__name=payment_status_filter)
         
 

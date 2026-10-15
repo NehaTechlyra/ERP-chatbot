@@ -12,9 +12,11 @@ from django.contrib.auth.decorators import login_required
 from Tax.models import Tax
 from email_config.models import EmailConfiguration
 from sms_config.models import SMSConfiguration
-from django.db.models import Sum
+from django.db.models import Sum, Q
+from decimal import Decimal
 from django.utils import timezone
 import json
+import re
 from datetime import date
 
 # Domain models used for dashboard metrics
@@ -43,6 +45,11 @@ from chart_of_accounts.permissions import (
     can_view_trial_balance, can_view_profit_loss, can_view_balance_sheet, can_view_cash_flow,
     can_view_chart, can_view_journal
 )
+
+
+def _count_latest_revisions(numbers):
+    """Count documents the way the list pages show them: INV-1, INV-1-R1, INV-1-R2 is one row."""
+    return len({re.sub(r'-R\d+$', '', n or '') for n in numbers})
 
 
 def Index(request):
@@ -100,15 +107,24 @@ def Index(request):
 
     # --- Additional dashboard metrics ---
     try:
-        employees = Employee.objects.using(company_db)
+        # Only active employees (Employee.status is a BooleanField, True = active)
+        employees = Employee.objects.using(company_db).filter(status=True)
         staff = employees.count()
     except Exception:
         staff = 0
 
     try:
-        # sum up expense totals (uses property on model)
-        expenses = Expense.objects.using(company_db).all()
-        total_expenses = sum(float(getattr(e, 'total_amount', 0) or 0) for e in expenses)
+        # Sum expense totals in company base currency.
+        # Exclude soft-deleted expenses (status=False), same as the Expenses list page.
+        total_expenses = 0.0
+        for e in Expense.objects.using(company_db).filter(status=True):
+            base = getattr(e, 'total_amount_base', None)
+            if base:
+                total_expenses += float(base)
+            else:
+                # Older rows without a stored base amount: convert using the saved FX rate
+                fx = getattr(e, 'fx_rate_to_base', None) or 1
+                total_expenses += float(getattr(e, 'total_amount', 0) or 0) * float(fx)
     except Exception:
         total_expenses = 0
 
@@ -122,28 +138,47 @@ def Index(request):
         hot_leads = warm_leads = cold_leads = total_leads = 0
 
     try:
-        sinv_qs = SalesInvoice.objects.using(company_db)
-        open_invoices = sinv_qs.filter(status='Open').count()
-        paid_invoices = sinv_qs.filter(status='Closed').count()
+        # Paid / open follow payment_status (same rule as the Sales dashboard),
+        # not the document status (Draft/Open/Closed). Drafts are not counted.
+        sinv_qs = SalesInvoice.objects.using(company_db).exclude(status='Draft')
+        paid_q = Q(payment_status__name__iexact='Paid')
+        # Count revision chains once so the card matches the invoice list page
+        paid_invoices = _count_latest_revisions(sinv_qs.filter(paid_q).values_list('inv_number', flat=True))
+        open_invoices = _count_latest_revisions(sinv_qs.exclude(paid_q).values_list('inv_number', flat=True))
         total_revenue = sinv_qs.aggregate(total=Sum('total_amount'))['total'] or 0
     except Exception:
         open_invoices = paid_invoices = 0
         total_revenue = 0
 
     try:
-        bill_qs = Bill.objects.using(company_db)
-        pending_bills = bill_qs.filter(status='Open').count()
+        # Pending = not fully paid, matching the Purchase dashboard rule
+        bill_qs = Bill.objects.using(company_db).exclude(status='Draft')
+        # List page keeps only the latest revision of each bill, then filters on payment status
+        latest = {}
+        for num, ps in bill_qs.values_list('bill_number', 'payment_status__name'):
+            m = re.match(r'^(?P<base>.+?)(?:-R(?P<rev>\d+))?$', num or '')
+            base, rev = (m.group('base'), int(m.group('rev') or 0)) if m else (num, 0)
+            if base not in latest or rev > latest[base][0]:
+                latest[base] = (rev, (ps or '').strip().lower())
+        pending_bills = sum(1 for _, ps in latest.values() if ps != 'paid')
         total_payable = bill_qs.aggregate(total=Sum('total_amount'))['total'] or 0
     except Exception:
         pending_bills = 0
         total_payable = 0
 
     try:
-        candidate_count = Candidate.objects.using(company_db).count()
-        selected_count = Candidate.objects.using(company_db).filter(current_status='selected').count()
-        offer_sent_count = Candidate.objects.using(company_db).filter(current_status='offer_sent').count()
-        offer_accepted_count = Candidate.objects.using(company_db).filter(current_status='offer_accepted').count()
-        joined_count = Candidate.objects.using(company_db).filter(current_status='joined').count()
+        # Recruitment funnel is cumulative: a candidate who has joined was also
+        # selected, sent an offer and accepted it, so count every later stage.
+        cand_qs = Candidate.objects.using(company_db)
+        candidate_count = cand_qs.count()
+        selected_count = cand_qs.filter(current_status__in=[
+            'selected', 'offer_sent', 'offer_accepted', 'offer_declined', 'offer_cancelled', 'joined'
+        ]).count()
+        offer_sent_count = cand_qs.filter(current_status__in=[
+            'offer_sent', 'offer_accepted', 'offer_declined', 'offer_cancelled', 'joined'
+        ]).count()
+        offer_accepted_count = cand_qs.filter(current_status__in=['offer_accepted', 'joined']).count()
+        joined_count = cand_qs.filter(current_status='joined').count()
     except Exception:
         candidate_count = selected_count = offer_sent_count = offer_accepted_count = joined_count = 0
 

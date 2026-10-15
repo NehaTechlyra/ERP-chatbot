@@ -525,19 +525,19 @@
       <div class="kpi-grid" id="kpiGrid">
 
         {% if has_purchase_expense_perm %}
-        <a href="" class="kpi-card" style="--kc1:#d97706;--kc2:#fbbf24;--kbg:#fef3c7;--kborder:rgba(217,119,6,.15);">
+        <a href="{% url 'expenses:expense_list' %}" class="kpi-card" style="--kc1:#d97706;--kc2:#fbbf24;--kbg:#fef3c7;--kborder:rgba(217,119,6,.15);">
           <div class="kpi-top">
             <div class="kpi-icon" style="background:#fef3c7;color:#d97706;border-color:rgba(217,119,6,.15);"><i class="bi bi-receipt"></i></div>
             <span class="kpi-pill" style="background:#fef3c7;color:#d97706;">Period</span>
           </div>
           <div class="kpi-label">Expenses</div>
-          <div class="kpi-value">{{ total_expenses }}</div>
+          <div class="kpi-value">{{ total_expenses|floatformat:2 }}</div>
           <div class="kpi-sub"><i class="bi bi-arrow-up-right"></i> Business expenses</div>
         </a>
         {% endif %}
 
         {% if has_hr_perm %}
-        <a href="" class="kpi-card" style="--kc1:#059669;--kc2:#34d399;--kbg:#d1fae5;--kborder:rgba(5,150,105,.15);">
+        <a href="{% url 'employees_list' %}" class="kpi-card" style="--kc1:#059669;--kc2:#34d399;--kbg:#d1fae5;--kborder:rgba(5,150,105,.15);">
           <div class="kpi-top">
             <div class="kpi-icon" style="background:#d1fae5;color:#059669;border-color:rgba(5,150,105,.15);"><i class="bi bi-person-badge-fill"></i></div>
             <span class="kpi-pill" style="background:#d1fae5;color:#059669;">All Depts</span>
@@ -549,7 +549,7 @@
         {% endif %}
 
         {% if has_crm_perm %}
-        <a href="" class="kpi-card" style="--kc1:#ea580c;--kc2:#fb923c;--kbg:#ffedd5;--kborder:rgba(234,88,12,.15);">
+        <a href="{% url 'lead_list' %}" class="kpi-card" style="--kc1:#ea580c;--kc2:#fb923c;--kbg:#ffedd5;--kborder:rgba(234,88,12,.15);">
           <div class="kpi-top">
             <div class="kpi-icon" style="background:#ffedd5;color:#ea580c;border-color:rgba(234,88,12,.15);"><i class="bi bi-fire"></i></div>
             <span class="kpi-pill" style="background:#ffedd5;color:#ea580c;">CRM</span>
@@ -561,7 +561,7 @@
         {% endif %}
 
         {% if has_sales_invoice_perm %}
-        <a href="" class="kpi-card" style="--kc1:#0284c7;--kc2:#38bdf8;--kbg:#e0f2fe;--kborder:rgba(2,132,199,.15);">
+        <a href="{% url 'sales_inv_list' %}?payment_status=outstanding" class="kpi-card" style="--kc1:#0284c7;--kc2:#38bdf8;--kbg:#e0f2fe;--kborder:rgba(2,132,199,.15);">
           <div class="kpi-top">
             <div class="kpi-icon" style="background:#e0f2fe;color:#0284c7;border-color:rgba(2,132,199,.15);"><i class="bi bi-file-earmark-text-fill"></i></div>
             <span class="kpi-pill" style="background:#e0f2fe;color:#0284c7;">Sales</span>
@@ -573,7 +573,7 @@
         {% endif %}
 
         {% if has_purchase_bill_perm %}
-        <a href="" class="kpi-card" style="--kc1:#7c3aed;--kc2:#a78bfa;--kbg:#ede9fe;--kborder:rgba(124,58,237,.15);">
+        <a href="{% url 'bill_list' %}?payment_status=outstanding" class="kpi-card" style="--kc1:#7c3aed;--kc2:#a78bfa;--kbg:#ede9fe;--kborder:rgba(124,58,237,.15);">
           <div class="kpi-top">
             <div class="kpi-icon" style="background:#ede9fe;color:#7c3aed;border-color:rgba(124,58,237,.15);"><i class="bi bi-box-seam-fill"></i></div>
             <span class="kpi-pill" style="background:#ede9fe;color:#7c3aed;">Purchase</span>
@@ -585,7 +585,7 @@
         {% endif %}
 
         {% if has_hr_perm %}
-        <a href="" class="kpi-card" style="--kc1:#0d9488;--kc2:#2dd4bf;--kbg:#ccfbf1;--kborder:rgba(13,148,136,.15);">
+        <a href="{% url 'candidate_list' %}" class="kpi-card" style="--kc1:#0d9488;--kc2:#2dd4bf;--kbg:#ccfbf1;--kborder:rgba(13,148,136,.15);">
           <div class="kpi-top">
             <div class="kpi-icon" style="background:#ccfbf1;color:#0d9488;border-color:rgba(13,148,136,.15);"><i class="bi bi-people-fill"></i></div>
             <span class="kpi-pill" style="background:#ccfbf1;color:#0d9488;">HR</span>
