@@ -2209,8 +2209,8 @@ label[for="backup-enabled"] {
                                 <div style="border:1px solid #eee; padding:12px; border-radius:6px; margin-bottom:10px; background:#fff;">
                                     <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
                                         <div>
-                                            <strong>{{ it.company.name }}</strong>
-                                            <div style="font-size:.85rem; color:#666;">Code: {{ it.company.company_code }}</div>
+                                            {% comment %} <strong>{{ it.company.name }}</strong> {% endcomment %}
+                                            <div style="font-size:.85rem; color:#666;">On Delivery</div>
                                         </div>
                                         <form method="POST" action="{% url 'settings_page' %}">
                                             {% csrf_token %}
