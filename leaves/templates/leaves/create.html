@@ -14,6 +14,11 @@
       <label class="form-label">Leave name</label>
   <input name="leaves_name" class="form-control" required value="{% if obj %}{{ obj.leaves_name }}{% endif %}" />
     </div>
+    <div class="mb-3">
+      <label class="form-label">Days allowed per year</label>
+      <input type="number" name="days_allowed" class="form-control" min="0" step="0.5" value="{% if obj %}{{ obj.days_allowed|stringformat:'s' }}{% else %}0{% endif %}" />
+      <div class="form-text">Annual quota per employee. Enter 0 for no limit (e.g. unpaid leave).</div>
+    </div>
     <div class="form-check mb-3">
       <input type="checkbox" name="status" class="form-check-input" id="id_status" checked />
       <label class="form-check-label" for="id_status">Active</label>

@@ -1,5 +1,6 @@
 from django.urls import path
 from . import views 
+from . import attendance_views
 
 urlpatterns = [
     path('employee_register/',views.employee_register,name='employee_register'),
@@ -47,6 +48,20 @@ urlpatterns = [
     path('employee/<int:pk>/delete/', views.employee_delete, name='employee_delete'),
     path('employee/<int:pk>/deactivate/', views.employee_deactivate, name='employee_deactivate'),
     path('employees/', views.employees_list, name='employees_list'),
+
+    # Attendance
+    path('attendance/', attendance_views.attendance_list, name='hr_attendance_list'),
+    path('attendance/monthly/', attendance_views.attendance_monthly, name='hr_attendance_monthly'),
+    path('attendance/check-in/', attendance_views.attendance_punch, {'action': 'check-in'}, name='hr_attendance_check_in'),
+    path('attendance/check-out/', attendance_views.attendance_punch, {'action': 'check-out'}, name='hr_attendance_check_out'),
+
+    # Leave requests & balances
+    path('leave-requests/', attendance_views.leave_request_list, name='hr_leave_request_list'),
+    path('leave-requests/add/', attendance_views.leave_request_create, name='hr_leave_request_create'),
+    path('leave-requests/<int:pk>/approve/', attendance_views.leave_request_action, {'action': 'approve'}, name='hr_leave_request_approve'),
+    path('leave-requests/<int:pk>/reject/', attendance_views.leave_request_action, {'action': 'reject'}, name='hr_leave_request_reject'),
+    path('leave-requests/<int:pk>/cancel/', attendance_views.leave_request_action, {'action': 'cancel'}, name='hr_leave_request_cancel'),
+    path('leave-balances/', attendance_views.leave_balance_list, name='hr_leave_balance_list'),
 
     path('notifications/send-message/<int:document_id>/', views.send_message, name='send_message'),
     path('notifications/mark-read/<int:notif_id>/', views.mark_notification_read, name='mark_notification_read'),

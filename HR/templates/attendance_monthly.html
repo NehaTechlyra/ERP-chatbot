@@ -1,0 +1,92 @@
+{% extends 'website/index.html' %}
+{% load static %}
+{% block page_title %}Monthly Attendance{% endblock %}
+{% block exstyle %}
+<link href="{% static 'style/general.css' %}" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+<style>
+  .month-grid { font-size: .78rem; white-space: nowrap; }
+  .month-grid th, .month-grid td { text-align: center; padding: .2rem .35rem; }
+  .month-grid .emp-col { text-align: left; position: sticky; left: 0; background: #fff; z-index: 1; min-width: 170px; }
+  .month-grid thead .emp-col { background: #f8f9fa; }
+  .cell-P  { background: #d1e7dd; color: #0f5132; font-weight: 600; }
+  .cell-A  { background: #f8d7da; color: #842029; font-weight: 600; }
+  .cell-HD { background: #fff3cd; color: #664d03; font-weight: 600; }
+  .cell-L  { background: #cff4fc; color: #055160; font-weight: 600; }
+  .cell-H  { background: #cfe2ff; color: #084298; font-weight: 600; }
+  .cell-WO { background: #e9ecef; color: #6c757d; }
+  .cell-unmarked { color: #adb5bd; }
+  .weekly-off-col { background: #f1f3f5; }
+</style>
+{% endblock exstyle %}
+{% block content %}
+<div class="container-fluid mt-4">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <h4 class="mb-0">Monthly attendance &middot; {{ month_name }} {{ year }}</h4>
+    <a href="{% url 'hr_attendance_list' %}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-list-check"></i> Daily sheet</a>
+  </div>
+
+  <form method="get" class="row g-2 align-items-end mb-3">
+    <div class="col-auto">
+      <div class="btn-group btn-group-sm" role="group">
+        <a class="btn btn-outline-secondary" href="?year={{ prev.year }}&month={{ prev.month }}&department={{ department_filter }}&q={{ search|urlencode }}"><i class="bi bi-chevron-left"></i></a>
+        <span class="btn btn-light disabled">{{ month_name }} {{ year }}</span>
+        <a class="btn btn-outline-secondary" href="?year={{ next.year }}&month={{ next.month }}&department={{ department_filter }}&q={{ search|urlencode }}"><i class="bi bi-chevron-right"></i></a>
+      </div>
+    </div>
+    <input type="hidden" name="year" value="{{ year }}">
+    <input type="hidden" name="month" value="{{ month }}">
+    {% if departments %}
+    <div class="col-auto">
+      <select name="department" class="form-select form-select-sm" onchange="this.form.submit()">
+        <option value="">All departments</option>
+        {% for d in departments %}<option value="{{ d.pk }}" {% if department_filter == d.pk|stringformat:'s' %}selected{% endif %}>{{ d.department_name }}</option>{% endfor %}
+      </select>
+    </div>
+    {% endif %}
+    {% if can_view_all %}
+    <div class="col-auto"><input type="text" name="q" value="{{ search }}" class="form-control form-control-sm" placeholder="Name or code"></div>
+    <div class="col-auto"><button class="btn btn-sm btn-primary">Apply</button></div>
+    {% endif %}
+  </form>
+
+  <div class="d-flex flex-wrap gap-2 mb-3 small">
+    <span class="px-2 cell-P">P Present</span><span class="px-2 cell-HD">HD Half day</span>
+    <span class="px-2 cell-A">A Absent</span><span class="px-2 cell-L">L Leave</span>
+    <span class="px-2 cell-H">H Holiday</span><span class="px-2 cell-WO">WO Week off</span>
+    <span class="px-2 cell-unmarked">- Not marked</span>
+  </div>
+
+  {% if rows %}
+  <div class="table-responsive">
+    <table class="table table-bordered table-sm month-grid">
+      <thead class="table-light">
+        <tr>
+          <th class="emp-col">Employee</th>
+          {% for d in days %}<th class="{% if d.weekday in weekly_off %}weekly-off-col{% endif %}">{{ d.day }}<br><span class="text-muted">{{ d|date:"D"|slice:":1" }}</span></th>{% endfor %}
+          <th>Present</th><th>Absent</th><th>Leave</th><th>Hol.</th><th>Unmarked</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          <td class="emp-col">{{ row.employee.first_name }} {{ row.employee.last_name }}{% if row.employee.emp_code %} <span class="text-muted">({{ row.employee.emp_code }})</span>{% endif %}</td>
+          {% for cell in row.cells %}
+            <td class="{% if cell.status == 'present' %}cell-P{% elif cell.status == 'absent' %}cell-A{% elif cell.status == 'half_day' %}cell-HD{% elif cell.status == 'on_leave' %}cell-L{% elif cell.status == 'holiday' %}cell-H{% elif cell.status == 'week_off' %}cell-WO{% elif cell.status == 'unmarked' %}cell-unmarked{% endif %}">{{ cell.code }}</td>
+          {% endfor %}
+          <td><strong>{{ row.present_days|floatformat:"-1" }}</strong></td>
+          <td>{{ row.absent|floatformat:"-1" }}</td>
+          <td>{{ row.on_leave|floatformat:"-1" }}</td>
+          <td>{{ row.holiday|floatformat:"-1" }}</td>
+          <td>{{ row.unmarked|floatformat:"-1" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="text-muted small">Present counts a half day as 0.5. Weekly-off days with no record are shown as WO automatically.</p>
+  {% else %}
+    <div class="alert alert-info text-center">No employees found.</div>
+  {% endif %}
+</div>
+{% endblock %}

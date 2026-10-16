@@ -4,6 +4,13 @@ from django.core.validators import MinValueValidator
 
 class Leaves(models.Model):
     leaves_name = models.CharField(max_length=100, blank=True, null=True)
+    days_allowed = models.DecimalField(
+        max_digits=5,
+        decimal_places=1,
+        default=0,
+        validators=[MinValueValidator(0)],
+        help_text="Annual quota in days per employee. 0 means no limit is tracked.",
+    )
     status = models.BooleanField(default=True)
     created_at  = models.DateTimeField(auto_now_add=True)
     updated_at  = models.DateTimeField(auto_now=True)

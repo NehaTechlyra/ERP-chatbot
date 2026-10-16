@@ -1,0 +1,108 @@
+{% extends 'website/index.html' %}
+{% load static %}
+{% block page_title %}Apply for Leave{% endblock %}
+{% block exstyle %}
+<link href="{% static 'style/general.css' %}" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+{% endblock exstyle %}
+{% block content %}
+<div class="container mt-4" style="max-width: 760px;">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0">Apply for leave</h4>
+    <a href="{% url 'hr_leave_request_list' %}" class="btn btn-outline-secondary btn-sm">&larr; Back</a>
+  </div>
+
+  {% if my_balances %}
+  <div class="d-flex flex-wrap gap-2 mb-3">
+    {% for b in my_balances %}
+      <span class="badge bg-light text-dark border">{{ b.leave_type }}: {{ b.available|floatformat:"-1" }} of {{ b.allocated|floatformat:"-1" }} available ({{ balance_year }})</span>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if form.non_field_errors %}
+    <div class="alert alert-danger py-2">
+      {% for err in form.non_field_errors %}<div>{{ err }}</div>{% endfor %}
+    </div>
+  {% endif %}
+
+  <form method="post" id="leave-form" novalidate>
+    {% csrf_token %}
+    <div class="row g-3">
+      <div class="col-md-6">
+        <label class="form-label" for="{{ form.employee.id_for_label }}">Employee</label>
+        {{ form.employee }}
+        {% for err in form.employee.errors %}<div class="text-danger small">{{ err }}</div>{% endfor %}
+      </div>
+      <div class="col-md-6">
+        <label class="form-label" for="{{ form.leave_type.id_for_label }}">Leave type</label>
+        {{ form.leave_type }}
+        {% for err in form.leave_type.errors %}<div class="text-danger small">{{ err }}</div>{% endfor %}
+      </div>
+      <div class="col-md-6">
+        <label class="form-label" for="{{ form.from_date.id_for_label }}">From</label>
+        {{ form.from_date }}
+        {% for err in form.from_date.errors %}<div class="text-danger small">{{ err }}</div>{% endfor %}
+      </div>
+      <div class="col-md-6">
+        <label class="form-label" for="{{ form.to_date.id_for_label }}">To</label>
+        {{ form.to_date }}
+        {% for err in form.to_date.errors %}<div class="text-danger small">{{ err }}</div>{% endfor %}
+      </div>
+      <div class="col-12">
+        <div class="form-check">
+          {{ form.is_half_day }}
+          <label class="form-check-label" for="{{ form.is_half_day.id_for_label }}">Half day (single date only)</label>
+        </div>
+        {% for err in form.is_half_day.errors %}<div class="text-danger small">{{ err }}</div>{% endfor %}
+      </div>
+      <div class="col-12">
+        <div class="alert alert-secondary py-2 mb-0" id="days-preview">
+          Days charged: <strong id="days-value">–</strong>
+          <span class="text-muted small ms-2">Weekly off ({{ weekly_off_names|join:", " }}) is not counted.</span>
+        </div>
+      </div>
+      <div class="col-12">
+        <label class="form-label" for="{{ form.reason.id_for_label }}">Reason</label>
+        {{ form.reason }}
+        {% for err in form.reason.errors %}<div class="text-danger small">{{ err }}</div>{% endfor %}
+      </div>
+    </div>
+    <div class="mt-4 d-flex gap-2">
+      <button type="submit" class="btn btn-success">Submit request</button>
+      <a href="{% url 'hr_leave_request_list' %}" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+</div>
+
+<script>
+  (function () {
+    // Mirrors HR.leave_utils.count_leave_days; the server remains the source of truth.
+    var weeklyOffPy = {{ weekly_off_numbers|safe }};  // Python weekday numbers: Mon=0 .. Sun=6
+    var from = document.getElementById('{{ form.from_date.id_for_label }}');
+    var to = document.getElementById('{{ form.to_date.id_for_label }}');
+    var half = document.getElementById('{{ form.is_half_day.id_for_label }}');
+    var out = document.getElementById('days-value');
+
+    function parse(v) {
+      if (!v) return null;
+      var p = v.split('-');
+      return new Date(Date.UTC(+p[0], +p[1] - 1, +p[2]));
+    }
+    function update() {
+      var a = parse(from.value), b = parse(to.value);
+      if (!a || !b || b < a) { out.textContent = '–'; return; }
+      var days = 0;
+      for (var d = new Date(a); d <= b; d.setUTCDate(d.getUTCDate() + 1)) {
+        var py = (d.getUTCDay() + 6) % 7;
+        if (weeklyOffPy.indexOf(py) === -1) days++;
+      }
+      if (half.checked && from.value === to.value && days) days = 0.5;
+      out.textContent = days;
+    }
+    [from, to, half].forEach(function (el) { el.addEventListener('change', update); });
+    from.addEventListener('change', function () { if (!to.value) { to.value = from.value; update(); } });
+    update();
+  })();
+</script>
+{% endblock %}

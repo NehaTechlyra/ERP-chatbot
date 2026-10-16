@@ -1,0 +1,2 @@
+{# Usage: {% include 'hr_status_badge.html' with status=obj.status label=obj.get_status_display %} #}
+<span class="badge {% if status == 'present' or status == 'approved' %}bg-success{% elif status == 'absent' or status == 'rejected' %}bg-danger{% elif status == 'half_day' %}bg-warning text-dark{% elif status == 'on_leave' or status == 'pending' %}bg-info text-dark{% elif status == 'holiday' %}bg-primary{% else %}bg-secondary{% endif %}">{{ label }}</span>

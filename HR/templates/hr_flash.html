@@ -1,0 +1,20 @@
+{# Flash messages shared by the attendance / leave pages. Expects optional success_message, error_message, errors. #}
+{% if success_message %}
+  <div class="alert alert-success alert-dismissible fade show py-2" role="alert">
+    {{ success_message }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+  </div>
+{% endif %}
+{% if error_message %}
+  <div class="alert alert-danger alert-dismissible fade show py-2" role="alert">
+    {{ error_message }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+  </div>
+{% endif %}
+{% if errors %}
+  <div class="alert alert-danger py-2" role="alert">
+    <ul class="mb-0 ps-3">
+      {% for err in errors %}<li>{{ err }}</li>{% endfor %}
+    </ul>
+  </div>
+{% endif %}

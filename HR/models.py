@@ -427,3 +427,202 @@ class RecruitmentOffer(models.Model):
 
 
 
+
+
+# ============================================================================
+# Attendance & Leave
+# ============================================================================
+
+class LeaveRequest(models.Model):
+    STATUS_PENDING = 'pending'
+    STATUS_APPROVED = 'approved'
+    STATUS_REJECTED = 'rejected'
+    STATUS_CANCELLED = 'cancelled'
+    STATUS_CHOICES = [
+        (STATUS_PENDING, 'Pending'),
+        (STATUS_APPROVED, 'Approved'),
+        (STATUS_REJECTED, 'Rejected'),
+        (STATUS_CANCELLED, 'Cancelled'),
+    ]
+
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='leave_requests')
+    leave_type = models.ForeignKey('leaves.Leaves', on_delete=models.PROTECT, related_name='leave_requests')
+    from_date = models.DateField()
+    to_date = models.DateField()
+    is_half_day = models.BooleanField(default=False)
+    # Calculated in save(): working days charged, excluding weekly-off days.
+    days = models.DecimalField(max_digits=5, decimal_places=1, default=0, editable=False)
+    reason = models.TextField(blank=True, null=True)
+    status = models.CharField(max_length=15, choices=STATUS_CHOICES, default=STATUS_PENDING)
+
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        related_name='leave_requests_reviewed',
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+    )
+    reviewed_at = models.DateTimeField(blank=True, null=True)
+    review_remarks = models.CharField(max_length=255, blank=True, null=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        related_name='leave_requests_created',
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+    )
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [models.Index(fields=['employee', 'from_date'])]
+
+    def __str__(self):
+        return f"{self.employee} - {self.leave_type} ({self.from_date} to {self.to_date})"
+
+    @property
+    def is_open(self):
+        """Pending or approved: counts against the employee's calendar."""
+        return self.status in (self.STATUS_PENDING, self.STATUS_APPROVED)
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        from . import leave_utils
+
+        if not (self.from_date and self.to_date and self.employee_id and self.leave_type_id):
+            return
+        if self.to_date < self.from_date:
+            raise ValidationError({'to_date': 'End date cannot be before the start date.'})
+        if self.from_date.year != self.to_date.year:
+            raise ValidationError(
+                'A leave request cannot span two calendar years. Please apply separately for each year.')
+        if self.is_half_day and self.from_date != self.to_date:
+            raise ValidationError({'is_half_day': 'A half-day leave must be for a single date.'})
+
+        days = leave_utils.count_leave_days(self.from_date, self.to_date, self.is_half_day)
+        if days <= 0:
+            raise ValidationError('The selected dates contain no working days.')
+
+        if self.is_open:
+            overlap = LeaveRequest.objects.filter(
+                employee=self.employee,
+                status__in=(self.STATUS_PENDING, self.STATUS_APPROVED),
+                from_date__lte=self.to_date,
+                to_date__gte=self.from_date,
+            ).exclude(pk=self.pk)
+            if overlap.exists():
+                raise ValidationError(
+                    'This employee already has a pending or approved leave overlapping these dates.')
+
+        # Quota check only while the request is pending (approval re-checks in services).
+        if self.status == self.STATUS_PENDING:
+            available = leave_utils.available_days(
+                self.employee, self.leave_type, self.from_date.year, exclude_pk=self.pk)
+            if available is not None and days > available:
+                raise ValidationError(
+                    f"Insufficient {self.leave_type} balance: {days} day(s) requested, "
+                    f"{max(available, 0)} available for {self.from_date.year}.")
+
+    def save(self, *args, **kwargs):
+        from . import leave_utils
+        self.days = leave_utils.count_leave_days(self.from_date, self.to_date, self.is_half_day)
+        super().save(*args, **kwargs)
+
+
+class LeaveBalance(models.Model):
+    """Annual quota of one leave type for one employee.
+
+    Only the allocation is stored; days used / pending are derived from
+    LeaveRequest rows (see HR.leave_utils) so they cannot drift.
+    """
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='leave_balances')
+    leave_type = models.ForeignKey('leaves.Leaves', on_delete=models.CASCADE, related_name='balances')
+    year = models.PositiveSmallIntegerField()
+    allocated = models.DecimalField(max_digits=5, decimal_places=1, default=0, validators=[MinValueValidator(0)])
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-year', 'employee__first_name', 'leave_type__leaves_name']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['employee', 'leave_type', 'year'], name='uniq_leave_balance_emp_type_year'),
+        ]
+
+    def __str__(self):
+        return f"{self.employee} - {self.leave_type} {self.year}"
+
+
+class Attendance(models.Model):
+    STATUS_PRESENT = 'present'
+    STATUS_ABSENT = 'absent'
+    STATUS_HALF_DAY = 'half_day'
+    STATUS_ON_LEAVE = 'on_leave'
+    STATUS_HOLIDAY = 'holiday'
+    STATUS_WEEK_OFF = 'week_off'
+    STATUS_CHOICES = [
+        (STATUS_PRESENT, 'Present'),
+        (STATUS_ABSENT, 'Absent'),
+        (STATUS_HALF_DAY, 'Half Day'),
+        (STATUS_ON_LEAVE, 'On Leave'),
+        (STATUS_HOLIDAY, 'Holiday'),
+        (STATUS_WEEK_OFF, 'Week Off'),
+    ]
+
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='attendance_records')
+    date = models.DateField()
+    status = models.CharField(max_length=15, choices=STATUS_CHOICES, default=STATUS_PRESENT)
+    check_in = models.TimeField(blank=True, null=True)
+    check_out = models.TimeField(blank=True, null=True)
+    remarks = models.CharField(max_length=255, blank=True, null=True)
+    # Set when the row was generated by an approved leave request.
+    leave_request = models.ForeignKey(
+        LeaveRequest, on_delete=models.SET_NULL, blank=True, null=True, related_name='attendance_records')
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        related_name='attendance_created',
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+    )
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        related_name='attendance_updated',
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+    )
+
+    class Meta:
+        ordering = ['-date', 'employee__first_name']
+        constraints = [
+            models.UniqueConstraint(fields=['employee', 'date'], name='uniq_attendance_employee_date'),
+        ]
+        indexes = [models.Index(fields=['date'])]
+
+    def __str__(self):
+        return f"{self.employee} - {self.date} ({self.get_status_display()})"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.check_in and self.check_out and self.check_out <= self.check_in:
+            raise ValidationError({'check_out': 'Check-out must be after check-in.'})
+
+    @property
+    def worked_hours(self):
+        """Hours between check-in and check-out as a Decimal, or None."""
+        if not (self.check_in and self.check_out):
+            return None
+        from datetime import datetime, date as _date
+        from decimal import Decimal
+        start = datetime.combine(_date.min, self.check_in)
+        end = datetime.combine(_date.min, self.check_out)
+        seconds = (end - start).total_seconds()
+        if seconds <= 0:
+            return None
+        return (Decimal(seconds) / Decimal(3600)).quantize(Decimal('0.01'))

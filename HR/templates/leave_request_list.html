@@ -1,0 +1,174 @@
+{% extends 'website/index.html' %}
+{% load static %}
+{% block page_title %}Leave Requests{% endblock %}
+{% block exstyle %}
+<link href="{% static 'style/general.css' %}" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+<style>
+  .balance-card { min-width: 150px; }
+  .leave-table td { vertical-align: middle; }
+</style>
+{% endblock exstyle %}
+{% block content %}
+<div class="container-fluid mt-4">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <h4 class="mb-0">Leave requests
+      {% if pending_total %}<span class="badge bg-info text-dark ms-2">{{ pending_total }} pending</span>{% endif %}
+    </h4>
+    <div class="d-flex gap-2">
+      <a href="{% url 'hr_leave_balance_list' %}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-pie-chart"></i> Leave balances</a>
+      {% if can_create_leave %}
+        <a href="{% url 'hr_leave_request_create' %}" class="btn btn-success btn-sm">+ Apply for leave</a>
+      {% endif %}
+    </div>
+  </div>
+
+  {% include 'hr_flash.html' %}
+
+  {% if my_balances %}
+  <div class="mb-3">
+    <div class="small text-muted mb-1">My leave balance &middot; {{ balance_year }}</div>
+    <div class="d-flex flex-wrap gap-2">
+      {% for b in my_balances %}
+      <div class="card balance-card"><div class="card-body py-2 px-3">
+        <div class="fw-semibold">{{ b.leave_type }}</div>
+        <div class="fs-5">{{ b.available|floatformat:"-1" }} <small class="text-muted fs-6">of {{ b.allocated|floatformat:"-1" }} available</small></div>
+        <div class="small text-muted">Used {{ b.used|floatformat:"-1" }}{% if b.pending %} &middot; Pending {{ b.pending|floatformat:"-1" }}{% endif %}</div>
+      </div></div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <form method="get" class="row g-2 align-items-end mb-3">
+    <div class="col-auto">
+      <label class="form-label mb-0 small text-muted">Status</label>
+      <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
+        <option value="">All</option>
+        {% for value, label in status_choices %}<option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </div>
+    {% if can_view_all %}
+    <div class="col-auto">
+      <label class="form-label mb-0 small text-muted">Employee</label>
+      <select name="employee" class="form-select form-select-sm" onchange="this.form.submit()">
+        <option value="">All</option>
+        {% for e in employees %}<option value="{{ e.pk }}" {% if employee_filter == e.pk|stringformat:'s' %}selected{% endif %}>{{ e.first_name }} {{ e.last_name }}</option>{% endfor %}
+      </select>
+    </div>
+    {% endif %}
+    <div class="col-auto">
+      <label class="form-label mb-0 small text-muted">Year</label>
+      <input type="number" name="year" value="{{ year_filter }}" class="form-control form-control-sm" style="width:90px" placeholder="Any" min="2000" max="2100">
+    </div>
+    <div class="col-auto"><button class="btn btn-sm btn-primary">Apply</button></div>
+    <div class="col-auto"><a class="btn btn-sm btn-outline-secondary" href="{% url 'hr_leave_request_list' %}">Reset</a></div>
+  </form>
+
+  {% if page.object_list %}
+  <div class="table-responsive">
+    <table class="table table-sm table-hover items-table leave-table">
+      <thead class="table-light">
+        <tr>
+          <th>#</th><th>Employee</th><th>Leave type</th><th>From</th><th>To</th><th>Days</th>
+          <th>Reason</th><th>Status</th><th>Reviewed</th><th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for leave in page.object_list %}
+        <tr>
+          <td>{{ forloop.counter0|add:page.start_index }}</td>
+          <td>{{ leave.employee.first_name }} {{ leave.employee.last_name }}</td>
+          <td>{{ leave.leave_type }}</td>
+          <td>{{ leave.from_date|date:"d M Y" }}</td>
+          <td>{{ leave.to_date|date:"d M Y" }}</td>
+          <td>{{ leave.days|floatformat:"-1" }}{% if leave.is_half_day %} <small class="text-muted">(half)</small>{% endif %}</td>
+          <td style="max-width:220px" class="text-truncate" title="{{ leave.reason|default:'' }}">{{ leave.reason|default:"-" }}</td>
+          <td>{% include 'hr_status_badge.html' with status=leave.status label=leave.get_status_display %}</td>
+          <td class="small">
+            {% if leave.reviewed_by %}{{ leave.reviewed_by.get_username }}<br>{% endif %}
+            {% if leave.reviewed_at %}{{ leave.reviewed_at|date:"d M Y" }}{% endif %}
+            {% if leave.review_remarks %}<br><span class="text-muted">{{ leave.review_remarks }}</span>{% endif %}
+          </td>
+          <td class="text-end text-nowrap">
+            {% if leave.can_review %}
+              <button type="button" class="btn btn-sm btn-outline-primary review-btn"
+                      data-bs-toggle="modal" data-bs-target="#reviewModal"
+                      data-employee="{{ leave.employee.first_name }} {{ leave.employee.last_name }}"
+                      data-summary="{{ leave.leave_type }}: {{ leave.from_date|date:'d M Y' }} – {{ leave.to_date|date:'d M Y' }} ({{ leave.days|floatformat:'-1' }} day{{ leave.days|pluralize }})"
+                      data-approve-url="{% url 'hr_leave_request_approve' leave.pk %}"
+                      data-reject-url="{% url 'hr_leave_request_reject' leave.pk %}">Review</button>
+            {% endif %}
+            {% if leave.can_cancel %}
+              <form method="post" action="{% url 'hr_leave_request_cancel' leave.pk %}" class="d-inline"
+                    onsubmit="return confirm('Cancel this leave request?');">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ current_path }}">
+                <button class="btn btn-sm btn-outline-danger" title="Cancel request"><i class="bi bi-x-circle"></i></button>
+              </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if page.paginator.num_pages > 1 %}
+  <nav aria-label="Leave requests pagination">
+    <ul class="pagination pagination-sm">
+      {% if page.has_previous %}<li class="page-item"><a class="page-link" href="?page={{ page.previous_page_number }}&status={{ status_filter }}&employee={{ employee_filter }}&year={{ year_filter }}">Previous</a></li>
+      {% else %}<li class="page-item disabled"><span class="page-link">Previous</span></li>{% endif %}
+      {% for p in page.paginator.page_range %}
+        <li class="page-item {% if page.number == p %}active{% endif %}"><a class="page-link" href="?page={{ p }}&status={{ status_filter }}&employee={{ employee_filter }}&year={{ year_filter }}">{{ p }}</a></li>
+      {% endfor %}
+      {% if page.has_next %}<li class="page-item"><a class="page-link" href="?page={{ page.next_page_number }}&status={{ status_filter }}&employee={{ employee_filter }}&year={{ year_filter }}">Next</a></li>
+      {% else %}<li class="page-item disabled"><span class="page-link">Next</span></li>{% endif %}
+    </ul>
+  </nav>
+  {% endif %}
+  {% else %}
+    <div class="alert alert-info text-center">No leave requests found.</div>
+  {% endif %}
+</div>
+
+<div class="modal fade" id="reviewModal" tabindex="-1" aria-labelledby="reviewModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <form method="post" class="modal-content" id="review-form">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ current_path }}">
+      <div class="modal-header">
+        <h5 class="modal-title" id="reviewModalLabel">Review leave request</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-1 fw-semibold" id="review-employee"></p>
+        <p class="text-muted" id="review-summary"></p>
+        <label class="form-label" for="review-remarks">Remarks (optional)</label>
+        <textarea name="remarks" id="review-remarks" class="form-control" rows="2" maxlength="255"></textarea>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="submit" class="btn btn-danger" id="review-reject">Reject</button>
+        <button type="submit" class="btn btn-success" id="review-approve">Approve</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  (function () {
+    var modal = document.getElementById('reviewModal');
+    if (!modal) return;
+    modal.addEventListener('show.bs.modal', function (event) {
+      var b = event.relatedTarget;
+      if (!b) return;
+      document.getElementById('review-employee').textContent = b.getAttribute('data-employee');
+      document.getElementById('review-summary').textContent = b.getAttribute('data-summary');
+      document.getElementById('review-remarks').value = '';
+      document.getElementById('review-approve').setAttribute('formaction', b.getAttribute('data-approve-url'));
+      document.getElementById('review-reject').setAttribute('formaction', b.getAttribute('data-reject-url'));
+    });
+  })();
+</script>
+{% endblock %}

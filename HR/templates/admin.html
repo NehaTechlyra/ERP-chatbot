@@ -346,11 +346,12 @@
 					{% if leaves_page and leaves_page.object_list %}
 						<div class="table-responsive mt-3 master-table">
 						<table class="items-table">
-							<thead class="table-light"><tr><th>Name</th><th class="text-end">Actions</th></tr></thead>
+							<thead class="table-light"><tr><th>Name</th><th>Days / year</th><th class="text-end">Actions</th></tr></thead>
 							<tbody>
 							{% for l in leaves_page.object_list %}
 							<tr>
 								<td>{{ l.leaves_name }}</td>
+								<td>{% if l.days_allowed %}{{ l.days_allowed|floatformat:"-1" }}{% else %}No limit{% endif %}</td>
 																<td class="text-end">
 																		{% if can_edit_master %}
 																			<a href="{% url 'leaves_edit' l.id %}?next=leaves" class="delete-btn" title="Edit" aria-label="Edit"><i class="bi bi-pencil"></i></a>

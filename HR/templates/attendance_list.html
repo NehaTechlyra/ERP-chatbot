@@ -1,0 +1,164 @@
+{% extends 'website/index.html' %}
+{% load static %}
+{% block page_title %}Attendance{% endblock %}
+{% block exstyle %}
+<link href="{% static 'style/general.css' %}" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+<style>
+  .att-summary .badge { font-size: .85rem; }
+  .att-table input[type=time] { min-width: 105px; }
+  .att-table select { min-width: 130px; }
+  .att-table td { vertical-align: middle; }
+</style>
+{% endblock exstyle %}
+{% block content %}
+<div class="container-fluid mt-4">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <h4 class="mb-0">Attendance</h4>
+    <div class="d-flex gap-2">
+      <a href="{% url 'hr_attendance_monthly' %}" class="btn btn-outline-primary btn-sm"><i class="bi bi-calendar3"></i> Monthly view</a>
+      <a href="{% url 'hr_leave_request_list' %}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-calendar-x"></i> Leave requests</a>
+    </div>
+  </div>
+
+  {% include 'hr_flash.html' %}
+
+  {% if me and selected_day == today %}
+  <div class="card mb-3">
+    <div class="card-body d-flex flex-wrap align-items-center justify-content-between gap-2 py-2">
+      <div>
+        <strong>My attendance today</strong>
+        {% if my_record %}
+          &nbsp;{% include 'hr_status_badge.html' with status=my_record.status label=my_record.get_status_display %}
+          {% if my_record.check_in %}<span class="ms-2 text-muted">In {{ my_record.check_in|time:"H:i" }}</span>{% endif %}
+          {% if my_record.check_out %}<span class="ms-2 text-muted">Out {{ my_record.check_out|time:"H:i" }}</span>{% endif %}
+        {% else %}
+          <span class="text-muted ms-2">Not checked in yet</span>
+        {% endif %}
+      </div>
+      <div class="d-flex gap-2">
+        <form method="post" action="{% url 'hr_attendance_check_in' %}">{% csrf_token %}
+          <button class="btn btn-success btn-sm" {% if my_record and my_record.check_in %}disabled{% endif %}><i class="bi bi-box-arrow-in-right"></i> Check in</button>
+        </form>
+        <form method="post" action="{% url 'hr_attendance_check_out' %}">{% csrf_token %}
+          <button class="btn btn-outline-danger btn-sm" {% if not my_record or not my_record.check_in or my_record.check_out %}disabled{% endif %}><i class="bi bi-box-arrow-right"></i> Check out</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <form method="get" class="row g-2 align-items-end mb-3">
+    <div class="col-auto">
+      <label class="form-label mb-0 small text-muted">Date</label>
+      <div class="input-group input-group-sm">
+        <a class="btn btn-outline-secondary" href="?date={{ prev_day|date:'Y-m-d' }}&department={{ department_filter }}&q={{ search|urlencode }}" title="Previous day"><i class="bi bi-chevron-left"></i></a>
+        <input type="date" name="date" value="{{ selected_day|date:'Y-m-d' }}" class="form-control" onchange="this.form.submit()">
+        <a class="btn btn-outline-secondary" href="?date={{ next_day|date:'Y-m-d' }}&department={{ department_filter }}&q={{ search|urlencode }}" title="Next day"><i class="bi bi-chevron-right"></i></a>
+      </div>
+    </div>
+    {% if departments %}
+    <div class="col-auto">
+      <label class="form-label mb-0 small text-muted">Department</label>
+      <select name="department" class="form-select form-select-sm" onchange="this.form.submit()">
+        <option value="">All</option>
+        {% for d in departments %}<option value="{{ d.pk }}" {% if department_filter == d.pk|stringformat:'s' %}selected{% endif %}>{{ d.department_name }}</option>{% endfor %}
+      </select>
+    </div>
+    {% endif %}
+    {% if can_view_all or departments %}
+    <div class="col-auto">
+      <label class="form-label mb-0 small text-muted">Search</label>
+      <input type="text" name="q" value="{{ search }}" class="form-control form-control-sm" placeholder="Name or code">
+    </div>
+    {% endif %}
+    <div class="col-auto"><button class="btn btn-sm btn-primary">Apply</button></div>
+    {% if selected_day != today %}<div class="col-auto"><a class="btn btn-sm btn-outline-secondary" href="{% url 'hr_attendance_list' %}">Today</a></div>{% endif %}
+  </form>
+
+  <div class="att-summary d-flex flex-wrap gap-2 mb-3">
+    <span class="badge bg-success">Present {{ counts.present }}</span>
+    <span class="badge bg-warning text-dark">Half day {{ counts.half_day }}</span>
+    <span class="badge bg-danger">Absent {{ counts.absent }}</span>
+    <span class="badge bg-info text-dark">On leave {{ counts.on_leave }}</span>
+    <span class="badge bg-secondary">Not marked {{ counts.unmarked }}</span>
+    <span class="badge bg-light text-dark border">Employees {{ counts.total }}</span>
+  </div>
+
+  {% if rows %}
+  {% if can_edit_attendance and not is_future %}
+  <form method="post" id="attendance-form">
+    {% csrf_token %}
+    <input type="hidden" name="date" value="{{ selected_day|date:'Y-m-d' }}">
+    <div class="d-flex justify-content-end gap-2 mb-2">
+      <button type="button" class="btn btn-outline-success btn-sm" id="mark-all-present"><i class="bi bi-check2-all"></i> Mark unmarked as present</button>
+      <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-save"></i> Save attendance</button>
+    </div>
+  {% endif %}
+    <div class="table-responsive">
+      <table class="table table-sm table-hover items-table att-table">
+        <thead class="table-light">
+          <tr>
+            <th>#</th><th>Code</th><th>Employee</th><th>Department</th>
+            <th>Status</th><th>Check in</th><th>Check out</th><th>Hours</th><th>Remarks</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+          {% with emp=row.employee rec=row.record %}
+          <tr>
+            <td>{{ forloop.counter }}</td>
+            <td>{{ emp.emp_code|default:"-" }}</td>
+            <td>{{ emp.first_name }} {{ emp.last_name }}</td>
+            <td>{% if emp.department %}{{ emp.department.department_name }}{% else %}-{% endif %}</td>
+            {% if can_edit_attendance and not is_future %}
+              <td>
+                <input type="hidden" name="employee_id" value="{{ emp.pk }}">
+                <select name="status_{{ emp.pk }}" class="form-select form-select-sm att-status">
+                  <option value="">— Not marked —</option>
+                  {% for value, label in status_choices %}
+                    <option value="{{ value }}" {% if rec and rec.status == value %}selected{% endif %}>{{ label }}</option>
+                  {% endfor %}
+                </select>
+              </td>
+              <td><input type="time" name="in_{{ emp.pk }}" class="form-control form-control-sm" value="{% if rec.check_in %}{{ rec.check_in|time:'H:i' }}{% endif %}"></td>
+              <td><input type="time" name="out_{{ emp.pk }}" class="form-control form-control-sm" value="{% if rec.check_out %}{{ rec.check_out|time:'H:i' }}{% endif %}"></td>
+              <td>{% if rec.worked_hours %}{{ rec.worked_hours }}{% else %}-{% endif %}</td>
+              <td><input type="text" name="remarks_{{ emp.pk }}" maxlength="255" class="form-control form-control-sm" value="{{ rec.remarks|default:'' }}"></td>
+            {% else %}
+              <td>{% if rec %}{% include 'hr_status_badge.html' with status=rec.status label=rec.get_status_display %}{% else %}<span class="text-muted">Not marked</span>{% endif %}</td>
+              <td>{% if rec.check_in %}{{ rec.check_in|time:"H:i" }}{% else %}-{% endif %}</td>
+              <td>{% if rec.check_out %}{{ rec.check_out|time:"H:i" }}{% else %}-{% endif %}</td>
+              <td>{% if rec.worked_hours %}{{ rec.worked_hours }}{% else %}-{% endif %}</td>
+              <td>{{ rec.remarks|default:"" }}</td>
+            {% endif %}
+          </tr>
+          {% endwith %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% if can_edit_attendance and not is_future %}
+    <div class="d-flex justify-content-end mb-4">
+      <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-save"></i> Save attendance</button>
+    </div>
+  </form>
+  {% endif %}
+  {% if is_future %}<div class="text-muted small">Attendance can't be marked for a future date.</div>{% endif %}
+  {% else %}
+    <div class="alert alert-info text-center">No employees found.</div>
+  {% endif %}
+</div>
+
+<script>
+  (function () {
+    var btn = document.getElementById('mark-all-present');
+    if (!btn) return;
+    btn.addEventListener('click', function () {
+      document.querySelectorAll('select.att-status').forEach(function (sel) {
+        if (!sel.value) sel.value = 'present';
+      });
+    });
+  })();
+</script>
+{% endblock %}
