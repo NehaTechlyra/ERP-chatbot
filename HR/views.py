@@ -1311,6 +1311,33 @@ def recruitment_reports(request):
             'count': candidates.filter(current_status=value).count(),
         })
 
+    now = timezone.localtime()
+    month_starts = []
+    for offset in range(5, -1, -1):
+        month = now.month - offset
+        year = now.year
+        while month <= 0:
+            month += 12
+            year -= 1
+        month_starts.append(now.replace(
+            year=year, month=month, day=1,
+            hour=0, minute=0, second=0, microsecond=0,
+        ))
+    month_counts = (
+        candidates.filter(created_at__gte=month_starts[0])
+        .annotate(month=TruncMonth('created_at'))
+        .values('month')
+        .annotate(count=Count('pk'))
+    )
+    month_count_map = {
+        row['month'].strftime('%Y-%m'): row['count']
+        for row in month_counts if row.get('month')
+    }
+    month_rows = [
+        {'label': month.strftime('%b'), 'count': month_count_map.get(month.strftime('%Y-%m'), 0)}
+        for month in month_starts
+    ]
+
     return render(request, 'recruitment_reports.html', {
         'job_count': jobs.count(),
         'candidate_count': candidates.count(),
@@ -1321,6 +1348,7 @@ def recruitment_reports(request):
         'joined_count': candidates.filter(current_status='joined').count(),
         'source_rows': source_rows,
         'status_rows': status_rows,
+        'month_rows': month_rows,
         'offer_rows': [
             {'label': label, 'count': offers.filter(status=value).count()}
             for value, label in RecruitmentOffer.STATUS_CHOICES

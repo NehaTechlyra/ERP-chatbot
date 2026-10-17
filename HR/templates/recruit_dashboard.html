@@ -136,6 +136,7 @@
     .chart-card:hover { transform: translateY(-2px); box-shadow: 0 8px 28px var(--accent-shadow); }
     .chart-card h6 { font-size: 0.875rem !important; font-weight: 700 !important; color: var(--text-primary) !important; margin-bottom: 16px !important; display: flex; align-items: center; gap: 7px; }
     .chart-card h6 i { color: var(--accent) !important; font-size: 1rem; }
+    .chart-empty { color: var(--text-muted); font-size: 0.85rem; padding: 24px 8px; text-align: center; }
 
     /* Doughnut layout */
     .donut-wrap { display: flex; gap: 18px; align-items: center; height: 180px; }
@@ -308,18 +309,19 @@ const PALETTE = ['#55588b','#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#1
 Chart.defaults.font.family = "'DM Sans', sans-serif";
 Chart.defaults.color       = '#7c7ca0';
 
-/* fallbacks so charts always render with demo data if backend sends nothing */
-const fallbacks = {
-    dept:     [{label:'Engineering',count:18},{label:'Sales',count:12},{label:'HR',count:6},{label:'Finance',count:9},{label:'Design',count:5}],
-    trend:    [{label:'Jan',count:4},{label:'Feb',count:7},{label:'Mar',count:11},{label:'Apr',count:8},{label:'May',count:15},{label:'Jun',count:10}],
-        hireTime: [{label:'Software Engineer',days:28},{label:'Marketing Lead',days:21},{label:'HR Specialist',days:14},{label:'Data Analyst',days:35},{label:'UX Designer',days:18}],
-        openPositions: [{label:'Engineering',count:6},{label:'Sales',count:3},{label:'HR',count:2},{label:'Finance',count:1},{label:'Design',count:2}],
-    source:   [{label:'LinkedIn',count:32},{label:'Referral',count:18},{label:'Indeed',count:14},{label:'Website',count:9},{label:'Other',count:5}],
-};
+function showChartEmpty(canvas, message) {
+    if (!canvas) return;
+    canvas.hidden = true;
+    const empty = document.createElement('div');
+    empty.className = 'chart-empty';
+    empty.textContent = message;
+    canvas.parentElement.appendChild(empty);
+}
 
 /* 1 ── Applications by Department (Vertical Bar) */
 (function() {
-    const rows = DASH.dept_rows.length ? DASH.dept_rows : fallbacks.dept;
+    const rows = DASH.dept_rows;
+    if (!rows.length) return showChartEmpty(document.getElementById('deptChart'), 'No application data available');
     new Chart(document.getElementById('deptChart'), {
         type: 'bar',
         data: {
@@ -348,7 +350,8 @@ const fallbacks = {
 
 /* 2 ── Application Status Trend (Line) */
 (function() {
-    const rows = DASH.trend_rows.length ? DASH.trend_rows : fallbacks.trend;
+    const rows = DASH.trend_rows;
+    if (!rows.length || rows.every(row => !row.count)) return showChartEmpty(document.getElementById('trendChart'), 'No applications in the last six months');
     new Chart(document.getElementById('trendChart'), {
         type: 'line',
         data: {
@@ -380,7 +383,8 @@ const fallbacks = {
 
 /* 3 ── Open Positions by Department (Horizontal Bar) */
 (function() {
-    const rows = DASH.open_positions_rows && DASH.open_positions_rows.length ? DASH.open_positions_rows : fallbacks.openPositions;
+    const rows = DASH.open_positions_rows || [];
+    if (!rows.length) return showChartEmpty(document.getElementById('openPositionsChart'), 'No open positions available');
     const colors = rows.map((_, i) => PALETTE[i % PALETTE.length]);
     const openCtx = document.getElementById('openPositionsChart');
     const openPositionsChart = new Chart(openCtx, {
@@ -427,7 +431,12 @@ const fallbacks = {
 
 /* 4 ── Source of Applications (Doughnut + legend) */
 (function() {
-    const rows   = DASH.source_rows.length ? DASH.source_rows : fallbacks.source;
+    const rows   = DASH.source_rows;
+    if (!rows.length || rows.every(row => !row.count)) {
+        showChartEmpty(document.getElementById('sourceChart'), 'No application source data available');
+        document.getElementById('sourceLegend').innerHTML = '<li class="chart-empty">No data available</li>';
+        return;
+    }
     const colors = rows.map((_, i) => PALETTE[i % PALETTE.length]);
 
     new Chart(document.getElementById('sourceChart'), {

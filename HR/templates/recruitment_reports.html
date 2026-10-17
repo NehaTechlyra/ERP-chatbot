@@ -152,6 +152,7 @@
 
     /* ── Donut legend ── */
     .legend-list { list-style: none; display: flex; flex-direction: column; gap: 9px; }
+    .chart-empty { color: var(--text-muted); font-size: 0.85rem; padding: 18px 8px; text-align: center; width: 100%; }
     .legend-item { display: flex; align-items: center; justify-content: space-between; font-size: 0.83rem; }
     .legend-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; margin-right: 8px; }
     .legend-label { display: flex; align-items: center; color: var(--text-muted); flex: 1; }
@@ -333,9 +334,16 @@ const DATA = {
 const PALETTE = ['#4f46e5','#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#14b8a6','#ec4899','#f97316','#6366f1'];
 
 function donutChart(canvasId, legendId, rows) {
-    if (!rows.length) return;
+    const canvas = document.getElementById(canvasId);
+    const legend = document.getElementById(legendId);
+    if (!canvas || !legend) return;
+    if (!rows.length || rows.every(r => !r.count)) {
+        canvas.hidden = true;
+        legend.innerHTML = '<li class="chart-empty">No data available</li>';
+        return;
+    }
     const colors = rows.map((_, i) => PALETTE[i % PALETTE.length]);
-    new Chart(document.getElementById(canvasId), {
+    new Chart(canvas, {
         type: 'doughnut',
         data: {
             labels: rows.map(r => r.label),
@@ -347,14 +355,11 @@ function donutChart(canvasId, legendId, rows) {
             animation: { animateRotate: true, duration: 700 }
         }
     });
-    const legend = document.getElementById(legendId);
-    if (legend) {
-        legend.innerHTML = rows.map((r, i) => `
-            <li class="legend-item">
-                <span class="legend-label"><span class="legend-dot" style="background:${colors[i]}"></span>${r.label}</span>
-                <span class="legend-count">${r.count}</span>
-            </li>`).join('');
-    }
+    legend.innerHTML = rows.map((r, i) => `
+        <li class="legend-item">
+            <span class="legend-label"><span class="legend-dot" style="background:${colors[i]}"></span>${r.label}</span>
+            <span class="legend-count">${r.count}</span>
+        </li>`).join('');
 }
 
 function buildFunnel() {
@@ -368,6 +373,10 @@ function buildFunnel() {
     const max = Math.max(...steps.map(s => s.value), 1);
     const el = document.getElementById('funnelList');
     if (!el) return;
+    if (!DATA.candidate_count) {
+        el.innerHTML = '<div class="chart-empty">No candidate data available</div>';
+        return;
+    }
     el.innerHTML = steps.map(s => `
         <div class="funnel-item">
             <div class="funnel-label">
@@ -383,9 +392,11 @@ function buildFunnel() {
 function buildMonthlyChart() {
     const canvas = document.getElementById('monthlyChart');
     if (!canvas) return;
-    let rows = DATA.month_rows;
-    if (!rows.length) {
-        rows = ['Jan','Feb','Mar','Apr','May','Jun'].map(m => ({ label: m, count: 0 }));
+    const rows = DATA.month_rows;
+    if (!rows.length || rows.every(r => !r.count)) {
+        canvas.hidden = true;
+        canvas.insertAdjacentHTML('afterend', '<div class="chart-empty">No applications in the last six months</div>');
+        return;
     }
     new Chart(canvas, {
         type: 'bar',
@@ -421,7 +432,11 @@ function buildAcceptanceGauge() {
     const sent     = DATA.offer_sent_count     || 0;
     const accepted = DATA.offer_accepted_count || 0;
     const pct      = sent ? Math.round(accepted / sent * 100) : 0;
-    if (pctEl) pctEl.textContent = pct + '%';
+    if (pctEl) pctEl.textContent = sent ? pct + '%' : '—';
+    if (!sent) {
+        canvas.hidden = true;
+        return;
+    }
     new Chart(canvas, {
         type: 'doughnut',
         data: {
