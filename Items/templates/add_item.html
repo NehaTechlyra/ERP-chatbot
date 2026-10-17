@@ -298,7 +298,10 @@ $(document).ready(function() {
     var currentWarehouseId = "{{ current_warehouse_id }}";
     var currentWarehouseName = "{{ current_warehouse_name }}";
 
-    if (currentWarehouseId && currentWarehouseName) {
+    if (currentWarehouseId && currentWarehouseName &&
+        !$('#warehouse_select option').filter(function() {
+          return this.value === currentWarehouseId;
+        }).length) {
       var option = new Option(currentWarehouseName, currentWarehouseId, true, true);
       $('#warehouse_select').append(option).trigger('change');
     }
@@ -1698,12 +1701,12 @@ $(document).on('submit', '#itemTypeCreateForm', function(e) {
                   <select class="form-select" name="warehouse" id="warehouse_select" style="width: 100%;">
                       <option value="">Choose...</option>
                       
-                      {% if warehouse_id and warehouse_text %}
-                      <option value="{{ warehouse_id }}" selected="selected">{{ warehouse_text }}</option>
-                      {% elif is_edit %}
+                      {% if is_edit %}
                           {% for wh in warehouses %}
-                              <option value="{{ wh.id }}" selected>{{ wh.name }}</option>
+                              <option value="{{ wh.id }}" {% if wh.selected %}selected="selected"{% endif %}>{{ wh.name }}</option>
                           {% endfor %}
+                      {% elif warehouse_id and warehouse_text %}
+                      <option value="{{ warehouse_id }}" selected="selected">{{ warehouse_text }}</option>
                       {% endif %}
                   </select>
               </div>
@@ -3345,7 +3348,6 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 {% endblock %}
-
 
 
 

@@ -504,6 +504,17 @@ def _build_add_item_context(request, form, units, vendors, hsn, warehouses, comp
         context['current_warehouse_id'] = preserved_data.get('warehouse_id', '')
         context['current_warehouse_name'] = preserved_data.get('warehouse_text', '')
     else:
+        default_warehouse = Warehouse.objects.using(company_db).filter(
+            status=True,
+            is_default=True,
+        ).first()
+        if default_warehouse:
+            context.update({
+                'warehouse_id': default_warehouse.pk,
+                'warehouse_text': default_warehouse.warehouse_name,
+                'current_warehouse_id': default_warehouse.pk,
+                'current_warehouse_name': default_warehouse.warehouse_name,
+            })
         context.update(_get_item_tax_context())
     context.update(extra)
     return context
@@ -1661,7 +1672,13 @@ def item_edit(request, pk):
     company_country = _get_company_country_name(request)
     company_tax_type = _get_company_tax_type(request)
     stock_entries = Stock.objects.filter(item=item).select_related('warehouse')
+    stock_entries = list(stock_entries)
     warehouses = [s.warehouse for s in stock_entries]
+    company_db = getattr(request, 'company_db', 'default')
+    default_warehouse = Warehouse.objects.using(company_db).filter(
+        status=True,
+        is_default=True,
+    ).first()
     # Determine selected warehouse id differently for GET and POST
     # if request.method == 'POST':
     #     if selected_warehouse_id:
@@ -1671,7 +1688,24 @@ def item_edit(request, pk):
     # else:
     #     # For GET, get the first warehouse id from stock_entries or None
     #     selected_warehouse_id = stock_entries[0].warehouse.id if stock_entries.exists() else None
-    selected_warehouse_id = request.POST.get('warehouse')
+    if request.method == "POST":
+        selected_warehouse_id = request.POST.get('warehouse', '')
+    else:
+        default_stock = next(
+            (
+                stock for stock in stock_entries
+                if default_warehouse and stock.warehouse_id == default_warehouse.pk
+            ),
+            None,
+        )
+        if default_stock:
+            selected_warehouse_id = default_stock.warehouse_id
+        elif stock_entries:
+            selected_warehouse_id = stock_entries[0].warehouse_id
+        elif default_warehouse:
+            selected_warehouse_id = default_warehouse.pk
+        else:
+            selected_warehouse_id = ''
 
     print("selected_warehouse_id:",selected_warehouse_id)
     warehouse_stock_data = []
@@ -1680,8 +1714,8 @@ def item_edit(request, pk):
             'id': s.warehouse.id,
             'name': s.warehouse.warehouse_name,
             'opening_stock': s.opening_stock,  # use your field name
-            'selected_warehouse_id': selected_warehouse_id
-            
+            'selected_warehouse_id': selected_warehouse_id,
+            'selected': str(s.warehouse_id) == str(selected_warehouse_id),
         })
     print("warehousedata1:",warehouse_stock_data)
     # all_warehouses = Warehouse.objects.all()
@@ -2128,6 +2162,16 @@ def item_edit(request, pk):
     warehouse_context = [
         {'id': w.id, 'name': w.warehouse_name} for w in warehouses
     ]
+    selected_warehouse = next(
+        (w for w in warehouses if str(w.pk) == str(selected_warehouse_id)),
+        None,
+    )
+    if (
+        selected_warehouse is None
+        and default_warehouse
+        and str(default_warehouse.pk) == str(selected_warehouse_id)
+    ):
+        selected_warehouse = default_warehouse
     if unit_id:
         unit_obj = Unit.objects.filter(id=unit_id).first()
         if unit_obj:
@@ -2186,6 +2230,8 @@ def item_edit(request, pk):
         'item': item,
         'current_unit_id': unit_id,
         'current_unit_name': unit_name,
+        'current_warehouse_id': selected_warehouse_id,
+        'current_warehouse_name': selected_warehouse.warehouse_name if selected_warehouse else '',
         'hsn_code_id': hsn_code_id,
         # 'warehouses': warehouse_context,
         'hsn_code_text': hsn_code_text,
@@ -3517,4 +3563,3 @@ def create_item_ajax_sales(request):
 def unit_createform(request):
     form = UnitForm()
     return render(request, 'unit_form_partial.html', {'unit_form': form})
-
