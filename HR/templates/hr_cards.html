@@ -148,28 +148,21 @@
             <p>{% if paginator %}{{ paginator.count }}{% else %}0{% endif %}</p>
         </div>
 
-        <div class="card" id="card-attendance" style="--card-color: #f59e0b;">
+        <a href="{% company_url 'hr_attendance_list' %}" class="card" id="card-attendance" style="--card-color: #f59e0b;">
             <i class="bi bi-calendar-check"></i>
             <div>Attendance</div>
-        </div>
+        </a>
 
-        <div class="card" id="card-leaves" style="--card-color: #8b5cf6;">
+        <a href="{% company_url 'hr_leave_request_list' %}" class="card" id="card-leaves" style="--card-color: #8b5cf6;">
             <i class="bi bi-card-checklist"></i>
             <div>Leaves</div>
-        </div>
+        </a>
         {% endif %}
 
         {% if can_view_recruitment %}
         <div class="card" id="card-recruit" style="--card-color: #ec4899;">
             <i class="bi bi-person-plus-fill"></i>
             <div>Recruit</div>
-        </div>
-        {% endif %}
-
-        {% if can_view_master %}
-        <div class="card" id="card-admin" style="--card-color: #10b981;">
-            <i class="bi bi-gear-fill"></i>
-            <div>Master Data</div>
         </div>
         {% endif %}
 
@@ -205,11 +198,6 @@
             </div>
         </div>
         {% endif %}
-
-        <div class="card" id="card-logout" style="--card-color: #ef4444;">
-            <i class="bi bi-box-arrow-right"></i>
-            <div>Logout</div>
-        </div>
 
     </div>
 </div>
