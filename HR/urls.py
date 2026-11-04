@@ -55,6 +55,12 @@ urlpatterns = [
     path('attendance/check-in/', attendance_views.attendance_punch, {'action': 'check-in'}, name='hr_attendance_check_in'),
     path('attendance/check-out/', attendance_views.attendance_punch, {'action': 'check-out'}, name='hr_attendance_check_out'),
 
+    # Shifts (HR master)
+    path('shifts/', attendance_views.shift_list, name='hr_shift_list'),
+    path('shifts/add/', attendance_views.shift_form, name='hr_shift_create'),
+    path('shifts/<int:pk>/edit/', attendance_views.shift_form, name='hr_shift_edit'),
+    path('shifts/<int:pk>/deactivate/', attendance_views.shift_deactivate, name='hr_shift_deactivate'),
+
     # Leave requests & balances
     path('leave-requests/', attendance_views.leave_request_list, name='hr_leave_request_list'),
     path('leave-requests/add/', attendance_views.leave_request_create, name='hr_leave_request_create'),

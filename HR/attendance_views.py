@@ -27,9 +27,9 @@ from Lyraerp.utils.redirect_utils import get_company_code, get_company_redirect_
 
 from . import attendance_services as services
 from . import leave_utils
-from .attendance_forms import LeaveRequestForm
-from .models import Attendance, Employee, LeaveBalance, LeaveRequest
-from .permissions import check_employee_access
+from .attendance_forms import LeaveRequestForm, ShiftForm
+from .models import Attendance, Employee, LeaveBalance, LeaveRequest, Shift
+from .permissions import check_employee_access, check_master_access
 
 
 # --- helpers -----------------------------------------------------------------
@@ -131,7 +131,7 @@ def _is_unchanged(record, status, check_in, check_out, remarks):
 
 def _scoped_employees(request, view_all, me):
     """Active employees the user may see, with department/search filters applied."""
-    employees = Employee.objects.filter(status=True).select_related('department', 'designation')
+    employees = Employee.objects.filter(status=True).select_related('department', 'designation', 'shift')
     if not view_all:
         employees = employees.filter(pk=me.pk)
     department = request.GET.get('department')
@@ -500,3 +500,58 @@ def leave_balance_list(request):
         'success_message': request.GET.get('success'),
         'error_message': request.GET.get('error'),
     })
+
+
+# --- shifts (HR master) -------------------------------------------------------
+
+def shift_list(request):
+    if not check_master_access(request.user, 'View'):
+        return _deny(request)
+    shifts = Shift.objects.filter(status=True).order_by('start_time', 'name')
+    counts = {}
+    for shift_id in Employee.objects.filter(status=True, shift__isnull=False).values_list('shift_id', flat=True):
+        counts[shift_id] = counts.get(shift_id, 0) + 1
+    for shift in shifts:
+        shift.employee_count = counts.get(shift.pk, 0)
+    return render(request, 'shift_list.html', {
+        'shifts': shifts,
+        'can_create_master': check_master_access(request.user, 'Create'),
+        'can_edit_master': check_master_access(request.user, 'Edit'),
+        'can_delete_master': check_master_access(request.user, 'Delete'),
+        'success_message': request.GET.get('success'),
+        'error_message': request.GET.get('error'),
+    })
+
+
+def shift_form(request, pk=None):
+    """Add (pk is None) or edit a shift."""
+    shift = get_object_or_404(Shift, pk=pk) if pk else None
+    if not check_master_access(request.user, 'Edit' if shift else 'Create'):
+        return _deny(request)
+
+    if request.method == 'POST':
+        form = ShiftForm(request.POST, instance=shift)
+        if form.is_valid():
+            obj = form.save(commit=False)
+            user = request.user if request.user.is_authenticated else None
+            if shift is None:
+                obj.created_by = user
+            obj.updated_by = user
+            obj.save()
+            return _redirect_to(request, 'hr_shift_list', {
+                'success': f"Shift '{obj.name}' {'updated' if shift else 'created'}."})
+    else:
+        form = ShiftForm(instance=shift)
+    return render(request, 'shift_form.html', {'form': form, 'shift': shift})
+
+
+def shift_deactivate(request, pk):
+    if request.method != 'POST':
+        return HttpResponseNotAllowed(['POST'])
+    if not check_master_access(request.user, 'Delete'):
+        return HttpResponseForbidden('You do not have permission to delete shifts.')
+    shift = get_object_or_404(Shift, pk=pk)
+    shift.status = False
+    shift.updated_by = request.user if request.user.is_authenticated else None
+    shift.save(update_fields=['status', 'updated_by', 'updated_at'])
+    return _redirect_to(request, 'hr_shift_list', {'success': f"Shift '{shift.name}' removed."})

@@ -743,7 +743,7 @@
             {% endif %}
 
             {% if request.user.is_superuser or 'HR' in visible_modules %}
-            {% with active_urls="hr_dashboard employees_list employee_register employee_edit admin_dashboard designation_add designation_edit department_add department_edit allowances_add allowances_edit leaves_add leaves_edit bank_add bank_edit recruiter_dashboard job_creation job_list job_detail job_edit candidate_list candidate_create candidate_detail candidate_edit recruitment_reports personal_document_type_list personal_document_type_add personal_document_type_edit personal_document_type_deactivate" %}
+            {% with active_urls="hr_dashboard employees_list employee_register employee_edit hr_attendance_list hr_attendance_monthly hr_leave_request_list hr_leave_request_create hr_leave_balance_list hr_shift_list hr_shift_create hr_shift_edit admin_dashboard designation_add designation_edit department_add department_edit allowances_add allowances_edit leaves_add leaves_edit bank_add bank_edit recruiter_dashboard job_creation job_list job_detail job_edit candidate_list candidate_create candidate_detail candidate_edit recruitment_reports personal_document_type_list personal_document_type_add personal_document_type_edit personal_document_type_deactivate" %}
             <li class="{% if request.resolver_match.url_name in active_urls.split %}showMenu{% endif %}">
                 <div class="icon-link">
                     <a  class="{% if request.resolver_match.url_name in active_urls.split %}active-link{% endif %}">
@@ -767,9 +767,24 @@
                     {% endwith %}
                     {% endif %}
 
+                    {% if can_view_employees %}
+                    {% with active_urls="hr_attendance_list hr_attendance_monthly" %}
+                        <li><a href="{% url 'hr_attendance_list' %}" class="{% if request.resolver_match.url_name in active_urls.split %}active-link{% endif %}">Attendance</a></li>
+                    {% endwith %}
+                    {% with active_urls="hr_leave_request_list hr_leave_request_create hr_leave_balance_list" %}
+                        <li><a href="{% url 'hr_leave_request_list' %}" class="{% if request.resolver_match.url_name in active_urls.split %}active-link{% endif %}">Leave Requests</a></li>
+                    {% endwith %}
+                    {% endif %}
+
                     {% if can_view_recruitment %}
                     {% with active_urls="recruiter_dashboard job_creation job_list job_detail job_edit candidate_list candidate_create candidate_detail candidate_edit recruitment_reports" %}
                         <li><a href="{% url 'recruiter_dashboard' %}" class="{% if request.resolver_match.url_name in active_urls.split %}active-link{% endif %}">Recruitments</a></li>
+                    {% endwith %}
+                    {% endif %}
+
+                    {% if can_view_master %}
+                    {% with active_urls="hr_shift_list hr_shift_create hr_shift_edit" %}
+                        <li><a href="{% url 'hr_shift_list' %}" class="{% if request.resolver_match.url_name in active_urls.split %}active-link{% endif %}">Shifts</a></li>
                     {% endwith %}
                     {% endif %}
 

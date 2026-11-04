@@ -8,6 +8,41 @@ from personaldocuments.models import PersonalDocumentType
 from django.utils import timezone
 from datetime import timedelta
 
+class Shift(models.Model):
+    """A working shift (e.g. General 09:00-17:30) that employees are assigned to."""
+    name = models.CharField(max_length=100, unique=True)
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+    status = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        related_name='shifts_created',
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+    )
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        related_name='shifts_updated',
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+    )
+
+    class Meta:
+        ordering = ['start_time', 'name']
+
+    def __str__(self):
+        return f"{self.name} ({self.start_time:%H:%M} - {self.end_time:%H:%M})"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.start_time and self.end_time and self.end_time <= self.start_time:
+            raise ValidationError({'end_time': 'End time must be after start time (overnight shifts are not supported).'})
+
+
 class Employee(models.Model):
     # === Auto Employee Code ===
     emp_code = models.CharField(max_length=10, unique=True, blank=True, null=True)
@@ -37,6 +72,7 @@ class Employee(models.Model):
     department = models.ForeignKey(Department,on_delete=models.SET_NULL,null=True)
     designation = models.ForeignKey(Designations, on_delete=models.SET_NULL, null=True, blank=True, related_name='employees') 
     
+    shift = models.ForeignKey('Shift', on_delete=models.SET_NULL, null=True, blank=True, related_name='employees')
     job_category = models.CharField(max_length=50, blank=True, null=True)
     joining_date = models.DateField(blank=True, null=True)
     confirm_date = models.DateField(blank=True, null=True)
@@ -626,3 +662,17 @@ class Attendance(models.Model):
         if seconds <= 0:
             return None
         return (Decimal(seconds) / Decimal(3600)).quantize(Decimal('0.01'))
+
+    @property
+    def worked_duration(self):
+        """Time between check-in and check-out as 'Xh Ym' (e.g. 8h 30m), or None."""
+        if not (self.check_in and self.check_out):
+            return None
+        from datetime import datetime, date as _date
+        start = datetime.combine(_date.min, self.check_in)
+        end = datetime.combine(_date.min, self.check_out)
+        minutes = int((end - start).total_seconds() // 60)
+        if minutes <= 0:
+            return None
+        hours, mins = divmod(minutes, 60)
+        return f"{hours}h {mins:02d}m"

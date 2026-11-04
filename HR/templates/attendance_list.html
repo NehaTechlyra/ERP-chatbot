@@ -99,7 +99,7 @@
       <table class="table table-sm table-hover items-table att-table">
         <thead class="table-light">
           <tr>
-            <th>#</th><th>Code</th><th>Employee</th><th>Department</th>
+            <th>#</th><th>Code</th><th>Employee</th><th>Department</th><th>Shift</th>
             <th>Status</th><th>Check in</th><th>Check out</th><th>Hours</th><th>Remarks</th>
           </tr>
         </thead>
@@ -111,25 +111,26 @@
             <td>{{ emp.emp_code|default:"-" }}</td>
             <td>{{ emp.first_name }} {{ emp.last_name }}</td>
             <td>{% if emp.department %}{{ emp.department.department_name }}{% else %}-{% endif %}</td>
+            <td class="text-nowrap">{% if emp.shift %}{{ emp.shift.name }}<br><small class="text-muted">{{ emp.shift.start_time|time:"H:i" }} - {{ emp.shift.end_time|time:"H:i" }}</small>{% else %}<span class="text-muted">-</span>{% endif %}</td>
             {% if can_edit_attendance and not is_future %}
               <td>
                 <input type="hidden" name="employee_id" value="{{ emp.pk }}">
-                <select name="status_{{ emp.pk }}" class="form-select form-select-sm att-status">
+                <select name="status_{{ emp.pk }}" class="form-select form-select-sm att-status"{% if emp.shift %} data-shift-in="{{ emp.shift.start_time|time:"H:i" }}" data-shift-out="{{ emp.shift.end_time|time:"H:i" }}"{% endif %}>
                   <option value="">— Not marked —</option>
                   {% for value, label in status_choices %}
                     <option value="{{ value }}" {% if rec and rec.status == value %}selected{% endif %}>{{ label }}</option>
                   {% endfor %}
                 </select>
               </td>
-              <td><input type="time" name="in_{{ emp.pk }}" class="form-control form-control-sm" value="{% if rec.check_in %}{{ rec.check_in|time:'H:i' }}{% endif %}"></td>
-              <td><input type="time" name="out_{{ emp.pk }}" class="form-control form-control-sm" value="{% if rec.check_out %}{{ rec.check_out|time:'H:i' }}{% endif %}"></td>
-              <td>{% if rec.worked_hours %}{{ rec.worked_hours }}{% else %}-{% endif %}</td>
+              <td><input type="time" name="in_{{ emp.pk }}" class="form-control form-control-sm att-in" value="{% if rec.check_in %}{{ rec.check_in|time:'H:i' }}{% endif %}"></td>
+              <td><input type="time" name="out_{{ emp.pk }}" class="form-control form-control-sm att-out" value="{% if rec.check_out %}{{ rec.check_out|time:'H:i' }}{% endif %}"></td>
+              <td class="text-nowrap">{% if rec.worked_duration %}{{ rec.worked_duration }}{% else %}-{% endif %}</td>
               <td><input type="text" name="remarks_{{ emp.pk }}" maxlength="255" class="form-control form-control-sm" value="{{ rec.remarks|default:'' }}"></td>
             {% else %}
               <td>{% if rec %}{% include 'hr_status_badge.html' with status=rec.status label=rec.get_status_display %}{% else %}<span class="text-muted">Not marked</span>{% endif %}</td>
               <td>{% if rec.check_in %}{{ rec.check_in|time:"H:i" }}{% else %}-{% endif %}</td>
               <td>{% if rec.check_out %}{{ rec.check_out|time:"H:i" }}{% else %}-{% endif %}</td>
-              <td>{% if rec.worked_hours %}{{ rec.worked_hours }}{% else %}-{% endif %}</td>
+              <td class="text-nowrap">{% if rec.worked_duration %}{{ rec.worked_duration }}{% else %}-{% endif %}</td>
               <td>{{ rec.remarks|default:"" }}</td>
             {% endif %}
           </tr>
@@ -152,13 +153,38 @@
 
 <script>
   (function () {
-    var btn = document.getElementById('mark-all-present');
-    if (!btn) return;
-    btn.addEventListener('click', function () {
-      document.querySelectorAll('select.att-status').forEach(function (sel) {
-        if (!sel.value) sel.value = 'present';
-      });
+    var NON_WORKING = ['absent', 'on_leave', 'holiday', 'week_off'];
+
+    function rowFields(sel) {
+      var row = sel.closest('tr');
+      return { inp: row.querySelector('.att-in'), out: row.querySelector('.att-out') };
+    }
+
+    // Selecting Present loads the employee's assigned shift times, but never overwrites times already entered.
+    function applyStatus(sel) {
+      var f = rowFields(sel);
+      if (!f.inp || !f.out) return;
+      if (sel.value === 'present') {
+        if (sel.dataset.shiftIn && !f.inp.value) f.inp.value = sel.dataset.shiftIn;
+        if (sel.dataset.shiftOut && !f.out.value) f.out.value = sel.dataset.shiftOut;
+      } else if (NON_WORKING.indexOf(sel.value) !== -1 || sel.value === '') {
+        f.inp.value = '';
+        f.out.value = '';
+      }
+    }
+
+    document.querySelectorAll('select.att-status').forEach(function (sel) {
+      sel.addEventListener('change', function () { applyStatus(sel); });
     });
+
+    var btn = document.getElementById('mark-all-present');
+    if (btn) {
+      btn.addEventListener('click', function () {
+        document.querySelectorAll('select.att-status').forEach(function (sel) {
+          if (!sel.value) { sel.value = 'present'; applyStatus(sel); }
+        });
+      });
+    }
   })();
 </script>
 {% endblock %}

@@ -1,0 +1,47 @@
+{% extends 'website/index.html' %}
+{% load static %}
+{% block page_title %}Shifts{% endblock %}
+{% block exstyle %}
+<link href="{% static 'style/general.css' %}" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+{% endblock exstyle %}
+{% block content %}
+<div class="container mt-4" style="max-width: 900px;">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0">Shifts</h4>
+    {% if can_create_master %}<a href="{% url 'hr_shift_create' %}" class="btn btn-success btn-sm">+ Add shift</a>{% endif %}
+  </div>
+
+  {% include 'hr_flash.html' %}
+
+  {% if shifts %}
+  <table class="table table-sm table-hover items-table align-middle">
+    <thead class="table-light">
+      <tr><th>Name</th><th>Start</th><th>End</th><th>Employees</th><th class="text-end">Actions</th></tr>
+    </thead>
+    <tbody>
+      {% for shift in shifts %}
+      <tr>
+        <td>{{ shift.name }}</td>
+        <td>{{ shift.start_time|time:"H:i" }}</td>
+        <td>{{ shift.end_time|time:"H:i" }}</td>
+        <td>{{ shift.employee_count }}</td>
+        <td class="text-end text-nowrap">
+          {% if can_edit_master %}<a href="{% url 'hr_shift_edit' shift.pk %}" class="delete-btn" title="Edit"><i class="bi bi-pencil"></i></a>{% endif %}
+          {% if can_delete_master %}
+          <form method="post" action="{% url 'hr_shift_deactivate' shift.pk %}" class="d-inline"
+                onsubmit="return confirm('Remove this shift? Employees assigned to it will have no shift.');">
+            {% csrf_token %}
+            <button type="submit" class="delete-btn" title="Remove"><i class="bi bi-trash"></i></button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+    <div class="alert alert-info text-center">No shifts yet.{% if can_create_master %} <a href="{% url 'hr_shift_create' %}" class="alert-link">Add your first shift</a>.{% endif %}</div>
+  {% endif %}
+</div>
+{% endblock %}

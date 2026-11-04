@@ -855,6 +855,19 @@
           </div>
         </div>
 
+        <div class="row mb-2">
+          <div class="col-md-4">
+            <label class="form-label">Shift</label>
+            <select name="shift" id="id_shift" class="form-control">
+              <option value="">No shift assigned</option>
+              {% for sh in shifts %}
+                <option value="{{ sh.pk }}" {% if employee and employee.shift_id == sh.pk %}selected{% endif %}>{{ sh.name }} ({{ sh.start_time|time:"H:i" }} - {{ sh.end_time|time:"H:i" }}){% if not sh.status %} - removed{% endif %}</option>
+              {% endfor %}
+            </select>
+            <div class="form-text">Used to prefill check-in / check-out when attendance is marked.</div>
+          </div>
+        </div>
+
         <div class="title">Salary Details</div>
         <div class="row mb-2">
           <div class="col-md-4">

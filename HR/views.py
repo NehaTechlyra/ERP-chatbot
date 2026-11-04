@@ -23,6 +23,7 @@ from .models import (
     EmployeePersonalDocument,
     JobOpening,
     RecruitmentOffer,
+    Shift,
 )
 from .services import sync_candidate_with_offer, update_candidate_status
 import re
@@ -108,6 +109,14 @@ from user.utils import has_permission
 from personaldocuments.models import PersonalDocumentType
 from chart_of_accounts.models import ChartOfAccounts
 from django.db.models.functions import TruncMonth
+
+def _shift_from_post(request):
+    """The active Shift chosen in the employee form, or None when left blank / invalid."""
+    shift_id = (request.POST.get('shift') or '').strip()
+    if not shift_id.isdigit():
+        return None
+    return Shift.objects.filter(pk=int(shift_id), status=True).first()
+
 
 def employee_register(request):
     # === Permission Check ===
@@ -281,6 +290,7 @@ def employee_register(request):
                 bank_upload_base64=file_to_data_url(bank_upload),
                 department=department,
                 designation=designation,
+                shift=_shift_from_post(request),
                 job_category=job_category,
                 joining_date=joining_date,
                 confirm_date=confirm_date,
@@ -430,6 +440,7 @@ def employee_register(request):
         'resume_name': request.GET.get('resume_name', ''),
     }
     return render(request, 'employee_register.html', {
+        "shifts": Shift.objects.filter(status=True),
         "departments": departments,
         "allowances": allowances,
         "leaves": leaves,
@@ -1475,6 +1486,7 @@ def employee_edit(request, pk):
 
             # === Job details ===
             employee.job_category = request.POST.get('job_category', employee.job_category)
+            employee.shift = _shift_from_post(request)
             joining_date = request.POST.get('joining_date')
             if joining_date:
                 employee.joining_date = joining_date
@@ -1691,7 +1703,10 @@ def employee_edit(request, pk):
         models.Q(status=True) | models.Q(id__in=doc_type_ids)
     )
 
+    shifts = Shift.objects.filter(models.Q(status=True) | models.Q(pk=employee.shift_id))
+
     return render(request, 'employee_edit.html', {
+        'shifts': shifts,
         'employee': employee,
         'departments': departments,
         'designations': designations,

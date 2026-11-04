@@ -17,7 +17,7 @@ from django.urls import reverse
 
 from HR import attendance_services as services
 from HR import leave_utils
-from HR.models import Attendance, Employee, LeaveBalance, LeaveRequest
+from HR.models import Attendance, Employee, LeaveBalance, LeaveRequest, Shift
 from leaves.models import Leaves
 
 MON = date(2026, 10, 12)   # Monday
@@ -241,7 +241,17 @@ class AttendanceServiceTests(TestCase):
         self.assertEqual(Attendance.objects.filter(employee=self.emp, date=MON).count(), 1)
         self.assertEqual(rec.status, Attendance.STATUS_HALF_DAY)
         self.assertEqual(rec.worked_hours, Decimal('4.00'))
+        self.assertEqual(rec.worked_duration, '4h 00m')
         self.assertEqual(rec.updated_by, self.user)
+
+    def test_worked_duration_shows_hours_and_minutes(self):
+        cases = [((9, 0), (17, 30), '8h 30m'), ((9, 0), (17, 45), '8h 45m'),
+                 ((9, 15), (9, 20), '0h 05m'), ((9, 0), (9, 0), None)]
+        for (ih, im), (oh, om), expected in cases:
+            rec = Attendance(employee=self.emp, date=MON, check_in=time(ih, im), check_out=time(oh, om))
+            with self.subTest(out=(oh, om)):
+                self.assertEqual(rec.worked_duration, expected)
+        self.assertIsNone(Attendance(employee=self.emp, date=MON).worked_duration)
 
     def test_non_working_status_clears_times(self):
         services.mark_attendance(self.emp, MON, Attendance.STATUS_ABSENT, self.user,
@@ -554,3 +564,110 @@ class ViewTests(TestCase):
                                 {'leaves_name': 'Sick', 'days_allowed': '7.5', 'status': 'on'})
         self.assertEqual(resp.status_code, 302)
         self.assertEqual(Leaves.objects.get(leaves_name='Sick').days_allowed, Decimal('7.5'))
+
+
+class ShiftModelTests(TestCase):
+    def test_end_must_be_after_start(self):
+        with self.assertRaises(ValidationError):
+            Shift(name='Bad', start_time=time(17, 0), end_time=time(9, 0)).full_clean()
+        with self.assertRaises(ValidationError):
+            Shift(name='Zero', start_time=time(9, 0), end_time=time(9, 0)).full_clean()
+
+    def test_str_and_employee_link(self):
+        shift = Shift.objects.create(name='General', start_time=time(9, 0), end_time=time(17, 30))
+        self.assertEqual(str(shift), 'General (09:00 - 17:30)')
+        emp = _make_employee('Asha', shift=shift)
+        self.assertEqual(list(shift.employees.all()), [emp])
+        shift.delete()
+        emp.refresh_from_db()
+        self.assertIsNone(emp.shift)
+
+
+@override_settings(
+    DATABASE_ROUTERS=[],
+    ALLOWED_HOSTS=['testserver'],
+    MIDDLEWARE=ViewTests._overridden_settings['MIDDLEWARE'],
+    TEMPLATES=_test_templates(),
+)
+class ShiftViewTests(TestCase):
+    CO = 'TESTCO'
+
+    def setUp(self):
+        User = get_user_model()
+        self.admin = User.objects.create_superuser('admin', 'admin@example.com', 'pw')
+        self.client.force_login(self.admin)
+        self.general = Shift.objects.create(name='General', start_time=time(9, 0), end_time=time(17, 30))
+        self.emp = _make_employee('Asha', shift=self.general)
+        self.nosh = _make_employee('Ben')
+
+    def url(self, name, pk=None):
+        kwargs = {'company_code': self.CO}
+        if pk:
+            kwargs['pk'] = pk
+        return reverse(name, kwargs=kwargs)
+
+    def test_create_edit_and_remove_shift(self):
+        resp = self.client.post(self.url('hr_shift_create'),
+                                {'name': 'Night', 'start_time': '14:00', 'end_time': '22:00'})
+        self.assertEqual(resp.status_code, 302)
+        night = Shift.objects.get(name='Night')
+        self.assertEqual((night.start_time, night.end_time, night.created_by), (time(14, 0), time(22, 0), self.admin))
+
+        self.client.post(self.url('hr_shift_edit', night.pk),
+                         {'name': 'Evening', 'start_time': '13:30', 'end_time': '21:30'})
+        night.refresh_from_db()
+        self.assertEqual((night.name, night.start_time), ('Evening', time(13, 30)))
+
+        self.client.post(self.url('hr_shift_deactivate', night.pk))
+        night.refresh_from_db()
+        self.assertFalse(night.status)
+        listing = self.client.get(self.url('hr_shift_list'))
+        self.assertContains(listing, 'General')
+        self.assertNotContains(listing, 'Evening')
+
+    def test_validation_errors(self):
+        resp = self.client.post(self.url('hr_shift_create'),
+                                {'name': 'general', 'start_time': '09:00', 'end_time': '17:00'})
+        self.assertContains(resp, 'already exists')  # case-insensitive duplicate
+        resp = self.client.post(self.url('hr_shift_create'),
+                                {'name': 'Backwards', 'start_time': '17:00', 'end_time': '09:00'})
+        self.assertContains(resp, 'End time must be after start time')
+        self.assertEqual(Shift.objects.count(), 1)
+
+    def test_deactivate_requires_post_and_permission(self):
+        self.assertEqual(self.client.get(self.url('hr_shift_deactivate', self.general.pk)).status_code, 405)
+        user = get_user_model().objects.create_user('plain', 'plain@example.com', 'pw')
+        self.client.force_login(user)
+        with mock.patch('HR.attendance_views.check_master_access', return_value=False):
+            self.assertEqual(self.client.post(self.url('hr_shift_deactivate', self.general.pk)).status_code, 403)
+            self.assertEqual(self.client.get(self.url('hr_shift_list')).status_code, 302)
+        self.general.refresh_from_db()
+        self.assertTrue(self.general.status)
+
+    def test_list_shows_employee_counts_and_sidebar_link(self):
+        resp = self.client.get(self.url('hr_shift_list'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertNotContains(resp, 'URL-ERROR')
+        self.assertEqual(resp.context['shifts'][0].employee_count, 1)
+        self.assertContains(resp, self.url('hr_shift_list'))
+
+    def test_attendance_sheet_exposes_shift_times_for_prefill(self):
+        resp = self.client.get(self.url('hr_attendance_list'), {'date': '2026-10-12'})
+        self.assertEqual(resp.status_code, 200)
+        html = resp.content.decode()
+        self.assertEqual(html.count('data-shift-in="09:00" data-shift-out="17:30"'), 1)  # only Asha
+        self.assertIn('General', html)
+        self.assertIn('att-in', html)
+        self.assertIn('att-out', html)
+
+    def test_employee_form_helper_ignores_blank_invalid_and_removed(self):
+        from django.test import RequestFactory
+        from HR.views import _shift_from_post
+        rf = RequestFactory()
+        self.assertEqual(_shift_from_post(rf.post('/', {'shift': str(self.general.pk)})), self.general)
+        self.assertIsNone(_shift_from_post(rf.post('/', {'shift': ''})))
+        self.assertIsNone(_shift_from_post(rf.post('/', {'shift': 'abc'})))
+        self.assertIsNone(_shift_from_post(rf.post('/', {'shift': '99999'})))
+        self.general.status = False
+        self.general.save()
+        self.assertIsNone(_shift_from_post(rf.post('/', {'shift': str(self.general.pk)})))

@@ -1,0 +1,40 @@
+{% extends 'website/index.html' %}
+{% load static %}
+{% block page_title %}{% if shift %}Edit Shift{% else %}Add Shift{% endif %}{% endblock %}
+{% block exstyle %}
+<link href="{% static 'style/general.css' %}" rel="stylesheet">
+{% endblock exstyle %}
+{% block content %}
+<div class="container mt-4" style="max-width: 560px;">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0">{% if shift %}Edit shift{% else %}Add shift{% endif %}</h4>
+    <a href="{% url 'hr_shift_list' %}" class="btn btn-outline-secondary btn-sm">&larr; Back</a>
+  </div>
+  <form method="post" novalidate>
+    {% csrf_token %}
+    {% if form.non_field_errors %}<div class="alert alert-danger py-2">{{ form.non_field_errors }}</div>{% endif %}
+    <div class="mb-3">
+      <label class="form-label" for="{{ form.name.id_for_label }}">Shift name</label>
+      {{ form.name }}
+      {% for err in form.name.errors %}<div class="text-danger small">{{ err }}</div>{% endfor %}
+    </div>
+    <div class="row g-3">
+      <div class="col-6">
+        <label class="form-label" for="{{ form.start_time.id_for_label }}">Start time</label>
+        {{ form.start_time }}
+        {% for err in form.start_time.errors %}<div class="text-danger small">{{ err }}</div>{% endfor %}
+      </div>
+      <div class="col-6">
+        <label class="form-label" for="{{ form.end_time.id_for_label }}">End time</label>
+        {{ form.end_time }}
+        {% for err in form.end_time.errors %}<div class="text-danger small">{{ err }}</div>{% endfor %}
+      </div>
+    </div>
+    <div class="form-text mt-2">Overnight shifts (ending after midnight) are not supported.</div>
+    <div class="mt-4 d-flex gap-2">
+      <button type="submit" class="btn btn-success">{% if shift %}Update{% else %}Save{% endif %}</button>
+      <a href="{% url 'hr_shift_list' %}" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

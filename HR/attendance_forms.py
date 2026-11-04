@@ -2,7 +2,7 @@ from django import forms
 
 from leaves.models import Leaves
 
-from .models import Employee, LeaveRequest
+from .models import Employee, LeaveRequest, Shift
 
 
 class LeaveRequestForm(forms.ModelForm):
@@ -34,3 +34,25 @@ class LeaveRequestForm(forms.ModelForm):
             if isinstance(field.widget, forms.Select):
                 css = 'form-select'
             field.widget.attrs.setdefault('class', css)
+
+
+class ShiftForm(forms.ModelForm):
+    class Meta:
+        model = Shift
+        fields = ['name', 'start_time', 'end_time']
+        widgets = {
+            'start_time': forms.TimeInput(attrs={'type': 'time'}, format='%H:%M'),
+            'end_time': forms.TimeInput(attrs={'type': 'time'}, format='%H:%M'),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            field.widget.attrs.setdefault('class', 'form-control')
+
+    def clean_name(self):
+        name = (self.cleaned_data.get('name') or '').strip()
+        # Case-insensitive; includes removed shifts because the name is unique in the database.
+        if Shift.objects.filter(name__iexact=name).exclude(pk=self.instance.pk).exists():
+            raise forms.ValidationError('A shift with this name already exists.')
+        return name
